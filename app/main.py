@@ -1,5 +1,4 @@
 import flet as ft
-from app.data.database import init_db
 from app.ui.router import Router
 
 def main(page: ft.Page):
@@ -8,7 +7,7 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
 
     # Initialize database
-    init_db()
+    # init_db()
 
     # Set up router
     router = Router(page)

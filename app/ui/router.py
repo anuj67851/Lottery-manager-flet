@@ -1,11 +1,10 @@
 import flet as ft
-from app.ui.views.login_view import LoginView
 
 class Router:
     def __init__(self, page: ft.Page):
         self.page = page
         self.routes = {
-            "login": LoginView,
+            # "login": LoginView,
         }
         self.current_view = None
 
