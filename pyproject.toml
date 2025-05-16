@@ -1,0 +1,36 @@
+[project]
+name = "Lottery Management System"
+version = "1.0.0"
+description = "System to manage lottery books and daily sales."
+authors = [
+    {name = "Anuj Patel", email = "anujpatel6785@gmail.com"}
+]
+# readme = "README.md" # Assuming you have one
+requires-python = ">=3.11"
+license = {text = "MIT"} # Or your chosen license
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Framework :: Flet",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Office/Business",
+]
+keywords = ["lottery", "management", "flet", "sales", "inventory"]
+dependencies = [
+    "flet",
+    "SQLAlchemy",
+    "bcrypt",
+]
+
+# [project.urls] # Optional: if you have a repo URL
+
+# This section is key for Flet tools if they use pyproject.toml for build/publish info
+[tool.flet.app]
+path = "."
+module = "run_app"
+
+# -- Paths for assets and icon, relative to project root --
+# This tells flet where to find assets if it bundles them using pyproject.toml info
+# (flet pack uses --add-data and --icon from CLI primarily)
+assets_dir = "assets"
+icon = "assets/app_icon.ico" # Or .ico
