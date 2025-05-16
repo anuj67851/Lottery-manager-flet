@@ -28,8 +28,6 @@ class UsersTable(ft.Container):
             controls=[
                 self._create_users_table(self.users),
             ],
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-            spacing=12,
         )
 
     def _create_users_table(self, users: List[User]):
@@ -45,7 +43,7 @@ class UsersTable(ft.Container):
                 cells=[
                     ft.DataCell(ft.Text(user.username)),
                     ft.DataCell(ft.Text(user.role)),
-                    ft.DataCell(ft.Text(str(user.created_date))),
+                    ft.DataCell(ft.Text(user.created_date.strftime("%Y-%m-%d"))),
                 ]
             )
             rows.append(row)
