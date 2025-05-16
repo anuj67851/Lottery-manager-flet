@@ -28,6 +28,7 @@ class AdminCreationForm(ft.Container):
             password=True,
             can_reveal_password=True,
             width=300,
+            on_submit=self.create_clicked
         )
         self.error_text = ft.Text(
             color=ft.Colors.RED,

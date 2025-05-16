@@ -13,9 +13,7 @@ class LoginView(ft.Container):
         self.page = page
         self.router = router
 
-        # Clear any existing AppBar when LoginView is loaded
-        self.page.appbar = None
-        # self.page.update() # Router will handle the update
+        self.page.appbar = self._build_appbar()
 
         with get_db_session() as db:
             users_exist = any_users_exist(db)
@@ -25,6 +23,13 @@ class LoginView(ft.Container):
                 self.current_form = AdminCreationForm(page=self.page, on_admin_created=self.on_admin_created)
 
         self.content = self._build_layout() # This is the body of the login page
+
+    def _build_appbar(self):
+        return ft.AppBar(
+            title=ft.Text("Lottery Management System"),
+            bgcolor=ft.Colors.BLUE_700,
+            color=ft.Colors.WHITE,
+        )
 
     def _build_layout(self):
         return ft.Column(

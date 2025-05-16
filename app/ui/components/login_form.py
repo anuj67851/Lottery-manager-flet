@@ -2,11 +2,12 @@ import flet as ft
 from typing import Callable
 
 from app.core.auth_service import AuthService
+from app.core.models import User
 from app.data.database import get_db_session
 from app.core.exceptions import AuthenticationError, ValidationError
 
 class LoginForm(ft.Container):
-    def __init__(self, page: ft.Page, on_login_success: Callable[[str], None]): # Added page parameter
+    def __init__(self, page: ft.Page, on_login_success: Callable[[User], None]): # Added page parameter
         super().__init__(padding=10, border_radius=10)
         self.page = page # Store the page reference
         self.on_login_success = on_login_success
@@ -15,12 +16,14 @@ class LoginForm(ft.Container):
             label="Username",
             autofocus=True,
             width=300,
+            on_submit=self.login_clicked,
         )
         self.password_field = ft.TextField(
             label="Password",
             password=True,
             can_reveal_password=True,
             width=300,
+            on_submit=self.login_clicked,
         )
         self.error_text = ft.Text(
             color=ft.Colors.RED,
