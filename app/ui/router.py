@@ -1,10 +1,16 @@
 import flet as ft
 
+from app.ui.views.login_view import LoginView
+from app.ui.views.admin_dashboard_view import AdminDashboardView
+from app.ui.views.employee_dashboard_view import EmployeeDashboardView
+
 class Router:
     def __init__(self, page: ft.Page):
         self.page = page
         self.routes = {
-            # "login": LoginView,
+            "login": LoginView,
+            "admin_dashboard": AdminDashboardView,
+            "employee_dashboard": EmployeeDashboardView,
         }
         self.current_view = None
 
