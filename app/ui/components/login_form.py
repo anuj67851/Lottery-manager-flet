@@ -2,80 +2,92 @@ import flet as ft
 from typing import Callable
 
 from app.core.auth_service import AuthService
-from app.core.models import User
 from app.data.database import get_db_session
 from app.core.exceptions import AuthenticationError, ValidationError
+from app.core.models import User
 
 class LoginForm(ft.Container):
-    def __init__(self, page: ft.Page, on_login_success: Callable[[User], None]): # Added page parameter
-        super().__init__(padding=10, border_radius=10)
-        self.page = page # Store the page reference
+    def __init__(self, page: ft.Page, on_login_success: Callable[[User], None]):
+        super().__init__()
+        self.page = page
         self.on_login_success = on_login_success
 
         self.username_field = ft.TextField(
             label="Username",
             autofocus=True,
-            width=300,
+            expand=True, # Make field expand to container width
+            border_radius=8,
+            prefix_icon=ft.Icons.PERSON_OUTLINE_ROUNDED,
+            content_padding=ft.padding.symmetric(vertical=14, horizontal=12), # Slightly more padding
             on_submit=self.login_clicked,
         )
         self.password_field = ft.TextField(
             label="Password",
             password=True,
             can_reveal_password=True,
-            width=300,
+            expand=True,
+            border_radius=8,
+            prefix_icon=ft.Icons.LOCK_OUTLINE_ROUNDED,
             on_submit=self.login_clicked,
+            content_padding=ft.padding.symmetric(vertical=14, horizontal=12)
         )
         self.error_text = ft.Text(
-            color=ft.Colors.RED,
             visible=False,
+            weight=ft.FontWeight.W_500
         )
-        self.login_button = ft.ElevatedButton(
+        self.login_button = ft.FilledButton(
             text="Login",
-            width=300,
+            expand=True,
+            height=48, # Taller button
             on_click=self.login_clicked,
+            icon=ft.Icons.LOGIN_ROUNDED
         )
         self.content = self._build_layout()
 
     def _build_layout(self):
         return ft.Column(
             controls=[
-                ft.Text("Login", size=30, weight=ft.FontWeight.BOLD),
-                ft.Text("Please enter your credentials", size=16),
-                ft.Container(height=20),
+                ft.Text(
+                    "Welcome Back!",
+                    style=ft.TextThemeStyle.HEADLINE_SMALL, # Using theme style
+                    weight=ft.FontWeight.BOLD,
+                    text_align=ft.TextAlign.CENTER
+                ),
+                ft.Text(
+                    "Sign in to access your account.",
+                    style=ft.TextThemeStyle.BODY_LARGE,
+                    color=ft.Colors.ON_SURFACE_VARIANT, # Softer color
+                    text_align=ft.TextAlign.CENTER
+                ),
+                ft.Container(height=20), # Spacing
                 self.username_field,
                 self.password_field,
                 self.error_text,
-                ft.Container(height=10),
+                ft.Container(height=15), # Spacing
                 self.login_button,
             ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=10,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH, # Stretch fields/button
+            spacing=12, # Spacing between form elements
         )
 
-    def login_clicked(self, e):
-        # 1. Clear previous error and update only the error text control
+    def login_clicked(self, e=None):
         self.error_text.value = ""
         self.error_text.visible = False
-        self.error_text.update() # Update specific control
+        self.error_text.update()
 
-        # 2. Get username and password
         username = self.username_field.value
         password = self.password_field.value
 
-        # 3. Authenticate user
         try:
             with get_db_session() as db:
-                user = AuthService.authenticate_user(db, username, password)
-            # If successful, the on_login_success callback will handle navigation
-            # and the router will update the page.
-            self.on_login_success(user)
+                user_obj = AuthService.authenticate_user(db, username, password)
+            self.on_login_success(user_obj)
         except (AuthenticationError, ValidationError) as ex:
             self.error_text.value = ex.message
             self.error_text.visible = True
-            self.error_text.update() # Update specific control
-        except Exception as ex_general: # Catch any other unexpected errors
-            print(f"Unexpected error in login: {ex_general}") # For debugging
+            self.error_text.update()
+        except Exception as ex_general:
+            print(f"Unexpected error in login: {ex_general}")
             self.error_text.value = "An unexpected error occurred during login."
             self.error_text.visible = True
-            self.error_text.update() # Update specific control
+            self.error_text.update()

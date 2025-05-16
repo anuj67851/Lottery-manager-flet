@@ -1,5 +1,6 @@
 import flet as ft
 
+from app.core.auth_service import AuthService
 from app.ui.components.login_form import LoginForm
 from app.ui.components.admin_creation_form import AdminCreationForm
 from app.data.crud_users import any_users_exist
@@ -65,7 +66,7 @@ class LoginView(ft.Container):
     def on_login_success(self, user: User):
         user_params = {"current_user": user}
 
-        if user.role == ADMIN_ROLE:
+        if AuthService.get_user_role(user) == ADMIN_ROLE:
             self.router.navigate_to(ADMIN_DASHBOARD_ROUTE, **user_params)
         else:
             self.router.navigate_to(EMPLOYEE_DASHBOARD_ROUTE, **user_params)
