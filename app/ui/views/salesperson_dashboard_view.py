@@ -18,7 +18,7 @@ class EmployeeDashboardView(ft.Container):
 
     def _build_appbar(self):
         return ft.AppBar(
-            title=ft.Text("Employee Dashboard"),
+            title=ft.Text("Sales person Dashboard"),
             bgcolor=ft.Colors.GREEN_700,
             color=ft.Colors.WHITE,
             actions=[
@@ -32,7 +32,7 @@ class EmployeeDashboardView(ft.Container):
         )
 
     def _build_body(self):
-        welcome_message = "Welcome, Employee!"
+        welcome_message = "Welcome, Sales person!"
         if self.current_user and self.current_user.username:
             welcome_message = f"Welcome, {self.current_user.username}!"
 
@@ -41,7 +41,7 @@ class EmployeeDashboardView(ft.Container):
             content=ft.Column(
                 [
                     ft.Text(welcome_message, size=28, weight=ft.FontWeight.BOLD),
-                    ft.Text("Enter sales.", size=16),
+                    ft.Text("Manage Users and License", size=16),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,

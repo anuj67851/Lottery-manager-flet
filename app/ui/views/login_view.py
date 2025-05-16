@@ -2,10 +2,10 @@ import flet as ft
 
 from app.core.auth_service import AuthService
 from app.ui.components.login_form import LoginForm
-from app.ui.components.admin_creation_form import AdminCreationForm
 from app.data.crud_users import any_users_exist
 from app.data.database import get_db_session
-from app.constants import ADMIN_ROLE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, LOGIN_ROUTE
+from app.constants import ADMIN_ROLE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, LOGIN_ROUTE, EMPLOYEE_ROLE, \
+    SALESPERSON_DASHBOARD_ROUTE, SALESPERSON_ROLE
 from app.core.models import User
 
 class LoginView(ft.Container):
@@ -20,10 +20,8 @@ class LoginView(ft.Container):
             users_exist = any_users_exist(db)
             if users_exist:
                 self.current_form = LoginForm(page=self.page, on_login_success=self.on_login_success)
-            else:
-                self.current_form = AdminCreationForm(page=self.page, on_admin_created=self.on_admin_created)
 
-        self.content = self._build_layout() # This is the body of the login page
+        self.content = self._build_layout()
 
     def _build_appbar(self):
         return ft.AppBar(
@@ -65,17 +63,11 @@ class LoginView(ft.Container):
 
     def on_login_success(self, user: User):
         user_params = {"current_user": user}
+        user_role = AuthService.get_user_role(user)
 
-        if AuthService.get_user_role(user) == ADMIN_ROLE:
+        if user_role == SALESPERSON_ROLE:
+            self.router.navigate_to(SALESPERSON_DASHBOARD_ROUTE, **user_params)
+        elif user_role == ADMIN_ROLE:
             self.router.navigate_to(ADMIN_DASHBOARD_ROUTE, **user_params)
         else:
             self.router.navigate_to(EMPLOYEE_DASHBOARD_ROUTE, **user_params)
-
-    def on_admin_created(self):
-        self.page.open(
-            ft.SnackBar(
-                content=ft.Text("Admin user created successfully! Please log in."),
-                open=True
-            )
-        )
-        self.router.navigate_to(LOGIN_ROUTE)
