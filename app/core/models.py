@@ -29,6 +29,7 @@ class User(Base):
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="employee")
+    created_date = Column(DateTime, nullable=False)
 
     def set_password(self, plain_password: str):
         """

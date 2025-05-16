@@ -19,3 +19,7 @@ class ValidationError(AppException):
 class DatabaseError(AppException):
     """Raised for errors during database operations (e.g., integrity constraints, connection issues)."""
     pass
+
+class WidgetError(AppException):
+    """Raised for errors during widget operations (e.g., invalid state, invalid configuration)."""
+    pass

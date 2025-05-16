@@ -1,7 +1,7 @@
 import flet as ft
 
 from app.core.auth_service import AuthService
-from app.ui.components.login_form import LoginForm
+from app.ui.components.forms.login_form import LoginForm
 from app.data.crud_users import any_users_exist
 from app.data.database import get_db_session
 from app.constants import ADMIN_ROLE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, \

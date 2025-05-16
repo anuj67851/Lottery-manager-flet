@@ -1,6 +1,8 @@
+import datetime
+
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from typing import Optional
+from typing import Optional, List, Any
 
 from app.core.models import User
 from app.constants import EMPLOYEE_ROLE # Use constant
@@ -12,7 +14,10 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
 def get_user_by_username(db: Session, username: str) -> Optional[User]:
     return db.query(User).filter(User.username == username).first()
 
-def create_user(db: Session, username: str, password: str, role: str = EMPLOYEE_ROLE) -> User:
+def get_users_by_roles(db: Session, roles: List[str]) -> list[type[User]]:
+    return db.query(User).filter(User.role.in_(roles)).all()
+
+def create_user(db: Session, username: str, password: str, role: str = EMPLOYEE_ROLE, created_date: datetime = datetime.date.today()) -> User:
     """
     Create a new user.
     Raises:
@@ -29,7 +34,7 @@ def create_user(db: Session, username: str, password: str, role: str = EMPLOYEE_
         raise DatabaseError(f"User with username '{username}' already exists.")
 
     try:
-        user = User(username=username, role=role)
+        user = User(username=username, role=role, created_date=created_date)
         user.set_password(password)
         db.add(user)
         db.commit()

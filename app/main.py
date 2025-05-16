@@ -8,7 +8,7 @@ def main(page: ft.Page):
     # Configure page
     page.title = APP_TITLE
 
-    page.window_full_screen = True
+    page.window.maximized = True
 
     # Define a Material 3 theme
     page.theme = ft.Theme(

@@ -1,6 +1,8 @@
 import flet as ft
-from app.constants import LOGIN_ROUTE
+from app.constants import LOGIN_ROUTE, SALESPERSON_ROLE, ADMIN_ROLE, EMPLOYEE_ROLE
 from app.core.models import User
+from app.ui.components.tables.users_table import UsersTable
+
 
 class SalesPersonDashboardView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User = None, **params):
@@ -9,12 +11,13 @@ class SalesPersonDashboardView(ft.Container):
         self.router = router
         self.current_user = current_user
 
+        self.users_table = UsersTable(self.page, user_roles=[SALESPERSON_ROLE, ADMIN_ROLE, EMPLOYEE_ROLE])
+
         # Set the page's AppBar
         self.page.appbar = self._build_appbar()
 
         # The content of this container will be the body of the dashboard
         self.content = self._build_body()
-        # self.page.update()
 
     def _build_appbar(self):
         return ft.AppBar(
@@ -34,17 +37,35 @@ class SalesPersonDashboardView(ft.Container):
     def _build_body(self):
         welcome_message = "Welcome, Sales person!"
         if self.current_user and self.current_user.username:
-            welcome_message = f"Welcome, {self.current_user.username}!"
+            welcome_message = f"Welcome, {self.current_user.username} (Sales Person)!"
 
-        # This is the content that goes *below* the AppBar
-        return ft.Container( # Main content container
-            content=ft.Column(
+        return ft.Container(  # Main content container
+            content=ft.Column( # column containing welcome message and content
                 [
                     ft.Text(welcome_message, size=28, weight=ft.FontWeight.BOLD),
-                    ft.Text("Manage Users and License", size=16),
+                    ft.Row( # row for key and users
+                        controls=[
+                            ft.Column(
+                                controls=[
+                                    ft.Text("Activate / Deactivate License"),
+                                    ft.Button(
+                                        icon=ft.Icons.KEY,
+                                        text="Activate License",
+                                        on_click=lambda e: print("Activate license"),
+                                    ),
+                                ]
+                            ),
+                            ft.Column(
+                                controls=[
+                                    ft.Text("Manage Users"),
+                                    self.users_table,
+                                ]
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_EVENLY,
+                    ),
                 ],
-                alignment=ft.MainAxisAlignment.CENTER,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.START,
                 spacing=20,
             ),
             padding=50,
@@ -54,5 +75,5 @@ class SalesPersonDashboardView(ft.Container):
 
     def logout(self, e):
         self.current_user = None
-        self.page.appbar = None # Clear the appbar when logging out
+        self.page.appbar = None  # Clear the appbar when logging out
         self.router.navigate_to(LOGIN_ROUTE)
