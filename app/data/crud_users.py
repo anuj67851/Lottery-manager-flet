@@ -1,121 +1,99 @@
-"""
-CRUD operations for User model.
-
-This module provides functions to create, read, update, and delete users
-in the database.
-"""
 from sqlalchemy.orm import Session
-from typing import Optional, List, Tuple
+from sqlalchemy.exc import IntegrityError
+from typing import Optional
 
 from app.core.models import User
+from app.constants import EMPLOYEE_ROLE # Use constant
+from app.core.exceptions import UserNotFoundError, DatabaseError, ValidationError # Import custom exceptions
 
 def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
-    """
-    Get a user by ID.
-
-    Args:
-        db (Session): The database session.
-        user_id (int): The ID of the user to retrieve.
-
-    Returns:
-        Optional[User]: The user if found, None otherwise.
-    """
     return db.query(User).filter(User.id == user_id).first()
 
 def get_user_by_username(db: Session, username: str) -> Optional[User]:
-    """
-    Get a user by username.
-
-    Args:
-        db (Session): The database session.
-        username (str): The username of the user to retrieve.
-
-    Returns:
-        Optional[User]: The user if found, None otherwise.
-    """
     return db.query(User).filter(User.username == username).first()
 
-def create_user(db: Session, username: str, password: str, role: str = "employee") -> User:
+def create_user(db: Session, username: str, password: str, role: str = EMPLOYEE_ROLE) -> User:
     """
     Create a new user.
-
-    Args:
-        db (Session): The database session.
-        username (str): The username for the new user.
-        password (str): The password for the new user.
-        role (str, optional): The role for the new user. Defaults to "employee".
-
-    Returns:
-        User: The created user.
+    Raises:
+        ValidationError: If username or password is not provided.
+        DatabaseError: If the user could not be created (e.g., username exists).
     """
-    user = User(username=username, role=role)
-    user.set_password(password)
+    if not username:
+        raise ValidationError("Username is required for creating a user.")
+    if not password:
+        raise ValidationError("Password is required for creating a user.")
 
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    existing_user = get_user_by_username(db, username)
+    if existing_user:
+        raise DatabaseError(f"User with username '{username}' already exists.")
 
-    return user
+    try:
+        user = User(username=username, role=role)
+        user.set_password(password)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    except IntegrityError: # Should be caught by pre-check, but as a fallback
+        db.rollback()
+        raise DatabaseError(f"User with username '{username}' already exists.")
+    except Exception as e:
+        db.rollback()
+        # Log the original exception e for debugging
+        raise DatabaseError(f"Could not create user: An unexpected error occurred.")
 
-def update_user(db: Session, user_id: int, username: Optional[str] = None, 
-                password: Optional[str] = None, role: Optional[str] = None) -> Optional[User]:
+
+def update_user(db: Session, user_id: int, username: Optional[str] = None,
+                password: Optional[str] = None, role: Optional[str] = None) -> User:
     """
     Update a user.
-
-    Args:
-        db (Session): The database session.
-        user_id (int): The ID of the user to update.
-        username (Optional[str], optional): The new username. Defaults to None.
-        password (Optional[str], optional): The new password. Defaults to None.
-        role (Optional[str], optional): The new role. Defaults to None.
-
-    Returns:
-        Optional[User]: The updated user if found, None otherwise.
+    Raises:
+        UserNotFoundError: If the user with user_id is not found.
+        DatabaseError: If the update fails.
     """
     user = get_user_by_id(db, user_id)
     if not user:
-        return None
+        raise UserNotFoundError(f"User with ID {user_id} not found.")
 
-    if username:
-        user.username = username
-    if password:
-        user.set_password(password)
-    if role:
-        user.role = role
+    try:
+        if username:
+            # Check if new username already exists for another user
+            if db.query(User).filter(User.username == username, User.id != user_id).first():
+                raise DatabaseError(f"Username '{username}' is already taken by another user.")
+            user.username = username
+        if password:
+            user.set_password(password)
+        if role:
+            user.role = role
+        db.commit()
+        db.refresh(user)
+        return user
+    except IntegrityError:
+        db.rollback()
+        raise DatabaseError(f"Could not update user: Username '{username}' may already exist.")
+    except Exception as e:
+        db.rollback()
+        raise DatabaseError(f"Could not update user: An unexpected error occurred.")
 
-    db.commit()
-    db.refresh(user)
-
-    return user
 
 def delete_user(db: Session, user_id: int) -> bool:
     """
     Delete a user.
-
-    Args:
-        db (Session): The database session.
-        user_id (int): The ID of the user to delete.
-
-    Returns:
-        bool: True if the user was deleted, False otherwise.
+    Raises:
+        UserNotFoundError: If the user with user_id is not found.
+        DatabaseError: If deletion fails.
     """
     user = get_user_by_id(db, user_id)
     if not user:
-        return False
-
-    db.delete(user)
-    db.commit()
-
-    return True
+        raise UserNotFoundError(f"User with ID {user_id} not found.")
+    try:
+        db.delete(user)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise DatabaseError(f"Could not delete user: An unexpected error occurred.")
 
 def any_users_exist(db: Session) -> bool:
-    """
-    Check if any users exist in the database.
-
-    Args:
-        db (Session): The database session.
-
-    Returns:
-        bool: True if at least one user exists, False otherwise.
-    """
     return db.query(User).first() is not None

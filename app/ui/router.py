@@ -3,24 +3,33 @@ import flet as ft
 from app.ui.views.login_view import LoginView
 from app.ui.views.admin_dashboard_view import AdminDashboardView
 from app.ui.views.employee_dashboard_view import EmployeeDashboardView
+# Import constants
+from app.constants import LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE
 
 class Router:
     def __init__(self, page: ft.Page):
         self.page = page
         self.routes = {
-            "login": LoginView,
-            "admin_dashboard": AdminDashboardView,
-            "employee_dashboard": EmployeeDashboardView,
+            LOGIN_ROUTE: LoginView,
+            ADMIN_DASHBOARD_ROUTE: AdminDashboardView,
+            EMPLOYEE_DASHBOARD_ROUTE: EmployeeDashboardView,
         }
-        self.current_view = None
+        self.current_view = None # Keep track of the current view instance
 
     def navigate_to(self, route_name, **params):
-        # Clear the page
-        self.page.controls.clear()
+        # Clear the page only if a new view is being loaded
+        if self.current_view:
+            self.page.controls.clear() # Or self.page.remove(self.current_view) if only one view is added
 
-        # Create the new view
         if route_name in self.routes:
             view_class = self.routes[route_name]
-            self.current_view = view_class(self.page, self, **params)
+            # Instantiate the view, applying the white screen fix pattern
+            self.current_view = view_class(page=self.page, router=self, **params)
             self.page.add(self.current_view)
-            self.page.update()
+        else:
+            # Handle unknown route, e.g., show a "Not Found" view or navigate to login
+            print(f"Error: Route '{route_name}' not found. Navigating to login.")
+            self.current_view = self.routes[LOGIN_ROUTE](page=self.page, router=self)
+            self.page.add(self.current_view)
+
+        self.page.update()

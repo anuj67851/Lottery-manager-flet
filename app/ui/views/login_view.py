@@ -1,106 +1,75 @@
-"""
-Login view for the application.
-
-This module provides a Flet view for the login page.
-"""
 import flet as ft
 
 from app.ui.components.login_form import LoginForm
 from app.ui.components.admin_creation_form import AdminCreationForm
 from app.data.crud_users import any_users_exist
 from app.data.database import get_db_session
+from app.constants import ADMIN_ROLE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, LOGIN_ROUTE
+from app.core.models import User
 
 class LoginView(ft.Container):
-    """
-    A view component for the login page.
-    """
-
     def __init__(self, page: ft.Page, router, **params):
-        """
-        Initialize the login view.
-
-        Args:
-            page (ft.Page): The Flet page.
-            router: The router for navigation.
-            **params: Additional parameters.
-        """
-        super().__init__()
+        super().__init__(expand=True, alignment=ft.alignment.center)
         self.page = page
         self.router = router
 
-        # Set page properties
-        self.page.title = "Login - Lottery Manager"
-        self.page.vertical_alignment = ft.MainAxisAlignment.CENTER
-        self.page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+        # Clear any existing AppBar when LoginView is loaded
+        self.page.appbar = None
+        # self.page.update() # Router will handle the update
 
-        # Check if any users exist
         with get_db_session() as db:
             users_exist = any_users_exist(db)
-            # Create appropriate form
             if users_exist:
-                # Create login form
-                self.current_form = LoginForm(on_login_success=self.on_login_success)
+                self.current_form = LoginForm(page=self.page, on_login_success=self.on_login_success)
             else:
-                # Create admin creation form
-                self.current_form = AdminCreationForm(on_admin_created=self.on_admin_created)
+                self.current_form = AdminCreationForm(page=self.page, on_admin_created=self.on_admin_created)
 
-    def build(self):
-        """
-        Build the login view.
+        self.content = self._build_layout() # This is the body of the login page
 
-        Returns:
-            ft.Control: The built view.
-        """
-        return ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Container(
-                        content=ft.Icon(
-                            ft.Icons.VERIFIED_USER,
-                            color=ft.Colors.BLUE,
-                            size=100,
-                        ),
-                        visible=False,  # Set to True if logo is available
+    def _build_layout(self):
+        return ft.Column(
+            [
+                ft.Container(
+                    content=ft.Icon(
+                        ft.Icons.LOCK_PERSON_OUTLINED,
+                        color=ft.Colors.BLUE_GREY_300,
+                        size=80,
                     ),
-                    ft.Container(
-                        content=self.current_form,
-                        padding=20,
-                        border_radius=10,
-                        bgcolor=ft.Colors.WHITE,
-                        shadow=ft.BoxShadow(
-                            spread_radius=1,
-                            blur_radius=15,
-                            color=ft.Colors.BLACK12,
-                        ),
+                    padding=ft.padding.only(bottom=20),
+                ),
+                ft.Container(
+                    content=self.current_form,
+                    padding=30,
+                    border_radius=12,
+                    bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.BLACK),
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=10,
+                        color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK26),
+                        offset=ft.Offset(0, 4),
                     ),
-                ],
-                alignment=ft.MainAxisAlignment.CENTER,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=20,
-            ),
-            padding=50,
-            alignment=ft.alignment.center,
+                    width=400,
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=20,
+            expand=True,
         )
 
-    def on_login_success(self, role: str):
-        """
-        Handle successful login.
+    def on_login_success(self, user: User):
+        user_params = {"current_user": user}
 
-        Args:
-            role (str): The role of the authenticated user.
-        """
-        # Navigate to appropriate dashboard based on user role
-        if role == "admin":
-            self.router.navigate_to("admin_dashboard")
+        if user.role == ADMIN_ROLE:
+            self.router.navigate_to(ADMIN_DASHBOARD_ROUTE, **user_params)
         else:
-            self.router.navigate_to("employee_dashboard")
+            self.router.navigate_to(EMPLOYEE_DASHBOARD_ROUTE, **user_params)
 
     def on_admin_created(self):
-        """
-        Handle successful admin creation.
-
-        This method is called when the admin user is successfully created.
-        It reloads the login view to show the login form.
-        """
-        # Reload the login view
-        self.router.navigate_to("login")
+        self.page.open(
+            ft.SnackBar(
+                content=ft.Text("Admin user created successfully! Please log in."),
+                open=True
+            )
+        )
+        self.router.navigate_to(LOGIN_ROUTE)
