@@ -4,7 +4,9 @@ from app.ui.views.login_view import LoginView
 from app.ui.views.admin_dashboard_view import AdminDashboardView
 from app.ui.views.employee_dashboard_view import EmployeeDashboardView
 # Import constants
-from app.constants import LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE
+from app.constants import LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, SALESPERSON_DASHBOARD_ROUTE
+from app.ui.views.salesperson_dashboard_view import SalesPersonDashboardView
+
 
 class Router:
     def __init__(self, page: ft.Page):
@@ -13,6 +15,7 @@ class Router:
             LOGIN_ROUTE: LoginView,
             ADMIN_DASHBOARD_ROUTE: AdminDashboardView,
             EMPLOYEE_DASHBOARD_ROUTE: EmployeeDashboardView,
+            SALESPERSON_DASHBOARD_ROUTE: SalesPersonDashboardView,
         }
         self.current_view = None # Keep track of the current view instance
 

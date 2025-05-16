@@ -19,7 +19,7 @@ class EmployeeDashboardView(ft.Container):
     def _build_appbar(self):
         return ft.AppBar(
             title=ft.Text("Employee Dashboard"),
-            bgcolor=ft.Colors.GREEN_700,
+            bgcolor=ft.Colors.BLUE_700,
             color=ft.Colors.WHITE,
             actions=[
                 ft.IconButton(

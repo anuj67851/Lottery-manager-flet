@@ -4,7 +4,7 @@ from app.core.auth_service import AuthService
 from app.ui.components.login_form import LoginForm
 from app.data.crud_users import any_users_exist
 from app.data.database import get_db_session
-from app.constants import ADMIN_ROLE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, LOGIN_ROUTE, EMPLOYEE_ROLE, \
+from app.constants import ADMIN_ROLE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, \
     SALESPERSON_DASHBOARD_ROUTE, SALESPERSON_ROLE
 from app.core.models import User
 

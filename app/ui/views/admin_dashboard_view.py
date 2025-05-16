@@ -1,7 +1,6 @@
 import flet as ft
 from app.constants import LOGIN_ROUTE
 from app.core.models import User
-from typing import Optional
 
 class AdminDashboardView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User, **params):

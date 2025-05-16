@@ -2,7 +2,7 @@ import flet as ft
 from app.constants import LOGIN_ROUTE
 from app.core.models import User
 
-class EmployeeDashboardView(ft.Container):
+class SalesPersonDashboardView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User = None, **params):
         super().__init__(expand=True)
         self.page = page
@@ -19,7 +19,7 @@ class EmployeeDashboardView(ft.Container):
     def _build_appbar(self):
         return ft.AppBar(
             title=ft.Text("Sales person Dashboard"),
-            bgcolor=ft.Colors.GREEN_700,
+            bgcolor=ft.Colors.BLUE_700,
             color=ft.Colors.WHITE,
             actions=[
                 ft.IconButton(
