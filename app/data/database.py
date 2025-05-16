@@ -5,8 +5,9 @@ from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 
 from app.constants import SALESPERSON_ROLE
-from app.core.models import Base, User
+from app.core.models import Base, User, License
 from app.config import SQLALCHEMY_DATABASE_URL, DB_BASE_DIR, SALES_USERNAME, SALES_PASSWORD
+from app.data.crud_license import create_license
 from app.data.crud_users import create_user
 
 # Ensure the database directory exists
@@ -29,7 +30,13 @@ def init_db():
         if db.query(User).filter(User.role == SALESPERSON_ROLE).first() is None:
             print("Creating default sales user...")
             create_user(db, SALES_USERNAME, SALES_PASSWORD, role=SALESPERSON_ROLE)
-            db.commit()
+
+        if db.query(License).first() is None:
+            print("Entering starting licence boolean...")
+            create_license(db)
+
+        db.commit()
+
 
 @contextmanager
 def get_db_session() -> Generator[Session, Any, None]:

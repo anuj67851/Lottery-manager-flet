@@ -1,6 +1,10 @@
 import flet as ft
+from sqlalchemy import Boolean
+
 from app.constants import LOGIN_ROUTE, SALESPERSON_ROLE, ADMIN_ROLE, EMPLOYEE_ROLE
 from app.core.models import User
+from app.data.crud_license import get_license_status, set_license_status
+from app.data.database import get_db_session
 from app.ui.components.tables.users_table import UsersTable # Assuming UsersTable is in this path
 
 
@@ -12,13 +16,13 @@ class SalesPersonDashboardView(ft.Container):
         self.current_user = current_user
 
         # --- State for License ---
-        self.license_activated = False  # Initial license state (e.g., fetch from a backend)
+        with get_db_session() as db:
+            self.license_activated = get_license_status(db)  # Initial license state (e.g., fetch from a backend)
 
         # --- UI Components ---
         self.users_table = UsersTable(
             self.page,
             user_roles=[SALESPERSON_ROLE, ADMIN_ROLE, EMPLOYEE_ROLE],
-            # Callbacks for edit/delete would be handled by UsersTable or passed here
         )
 
         self.license_status_label = ft.Text()
@@ -65,6 +69,10 @@ class SalesPersonDashboardView(ft.Container):
 
     def _toggle_license(self, e):
         self.license_activated = not self.license_activated
+        with get_db_session() as db:
+            print("License changed to : ", self.license_activated)
+            set_license_status(db, self.license_activated)
+            db.commit()
         print(f"License toggled. New status: {'Active' if self.license_activated else 'Inactive'}")
         self._update_license_controls()
 

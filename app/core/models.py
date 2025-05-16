@@ -190,3 +190,15 @@ class SalesEntry(Base):
         Returns a string representation of the SalesEntry object.
         """
         return f"<SalesEntry(id={self.id}, book_instance_id={self.book_instance_id}, user_id={self.user_id}, start_number={self.start_number}, end_number={self.end_number}, date={self.date}, count={self.count}, price={self.price})>"
+
+class License(Base):
+    __tablename__ = "license"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    is_active = Column(Boolean, nullable=False, default=False)
+
+    def set_status(self, status: bool):
+        self.is_active = status
+
+    def __repr__(self):
+        return f"<License(id={self.id}, is_active={self.is_active})>"
