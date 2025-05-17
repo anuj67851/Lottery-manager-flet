@@ -120,6 +120,7 @@ class Book(Base):
     __tablename__ = "books"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ticket_order = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
     activate_date = Column(DateTime, nullable=False, default=datetime.datetime.now())
     finish_date = Column(DateTime, nullable=True)
@@ -127,10 +128,18 @@ class Book(Base):
     game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
     game = relationship("Game", back_populates="books")
 
-    ticket_order = Column(String, nullable=False, default=game.default_ticket_order)
-
     sales_entries = relationship("SalesEntry", back_populates="book")
     instance_number = Column(Integer, nullable=True)
+
+    def __init__(self, **kwargs):
+        """
+        Initializes a new Book instance.
+        """
+        super().__init__(**kwargs)
+        # Set the default ticket order based on the associated game
+        if self.game and self.ticket_order is None:
+            self.ticket_order = self.game.default_ticket_order
+
 
     def __repr__(self):
         """
