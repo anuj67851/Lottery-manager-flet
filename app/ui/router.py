@@ -1,10 +1,12 @@
 import flet as ft
 
+from app.ui.views.admin.game_management import GameManagementView
 from app.ui.views.login_view import LoginView
 from app.ui.views.admin_dashboard_view import AdminDashboardView
 from app.ui.views.employee_dashboard_view import EmployeeDashboardView
 # Import constants
-from app.constants import LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, SALESPERSON_DASHBOARD_ROUTE
+from app.constants import LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, SALESPERSON_DASHBOARD_ROUTE, \
+    GAME_MANAGEMENT_ROUTE
 from app.ui.views.salesperson_dashboard_view import SalesPersonDashboardView
 
 
@@ -16,6 +18,7 @@ class Router:
             ADMIN_DASHBOARD_ROUTE: AdminDashboardView,
             EMPLOYEE_DASHBOARD_ROUTE: EmployeeDashboardView,
             SALESPERSON_DASHBOARD_ROUTE: SalesPersonDashboardView,
+            GAME_MANAGEMENT_ROUTE: GameManagementView,
         }
         self.current_view = None # Keep track of the current view instance
         self.current_route_name = None # Keep track of current route name

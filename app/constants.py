@@ -16,3 +16,9 @@ LOGIN_ROUTE = "login"
 ADMIN_DASHBOARD_ROUTE = "admin_dashboard"
 EMPLOYEE_DASHBOARD_ROUTE = "employee_dashboard"
 SALESPERSON_DASHBOARD_ROUTE = "salesperson_dashboard"
+
+# Game Management routes
+GAME_MANAGEMENT_ROUTE = "game_management"
+
+# Book management routes
+BOOK_MANAGEMENT_ROUTE = "book_management"

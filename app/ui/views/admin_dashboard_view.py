@@ -1,5 +1,5 @@
 import flet as ft
-from app.constants import LOGIN_ROUTE
+from app.constants import LOGIN_ROUTE, GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE
 from app.core.models import User
 from app.ui.components.widgets.function_button import create_nav_card_button
 
@@ -11,6 +11,15 @@ class AdminDashboardView(ft.Container):
         self.router = router
         self.current_user = current_user
         self.license_status = license_status
+        self.navigation_params = {
+            "current_user": self.current_user,
+            "license_status": self.license_status,
+            "previous_view_route": ADMIN_DASHBOARD_ROUTE,
+            "previous_view_params": {
+                "current_user": self.current_user,
+                "license_status": self.license_status,
+            },
+        }
 
         self.page.appbar = self._build_appbar()  # Reverted AppBar build
         self.content = self._build_body()
@@ -105,25 +114,28 @@ class AdminDashboardView(ft.Container):
     def _build_inventory_functions_quadrant(self) -> ft.Container:
         buttons = [
             create_nav_card_button(
-                router=self.router, text="Add Game", icon_name=ft.Icons.ADD_BUSINESS_ROUNDED,  # Updated Icon
-                accent_color=ft.Colors.GREEN_800, navigate_to_route=LOGIN_ROUTE, tooltip="Add New Game"),
+                router=self.router,
+                text="Manage Games",
+                icon_name=ft.Icons.SPORTS_ESPORTS_ROUNDED,  # Icon suggesting games/gaming
+                accent_color=ft.Colors.DEEP_PURPLE_600, # A distinct, engaging color for games
+                navigate_to_route=GAME_MANAGEMENT_ROUTE, # Placeholder
+                tooltip="View, edit, expire, or add new game types", # More descriptive tooltip
+                router_params=self.navigation_params,
+            ),
             create_nav_card_button(
-                router=self.router, text="Manage Games", icon_name=ft.Icons.EDIT_NOTE_ROUNDED,  # Updated Icon
-                accent_color=ft.Colors.BLUE_GREY_700, navigate_to_route=LOGIN_ROUTE, tooltip="Manage Games Info"),
-            create_nav_card_button(
-                router=self.router, text="Expire Game", icon_name=ft.Icons.EVENT_REPEAT_ROUNDED,  # Updated Icon
-                accent_color=ft.Colors.ORANGE_800, navigate_to_route=LOGIN_ROUTE, tooltip="Expire Game"),
-            create_nav_card_button(
-                router=self.router, text="Add Books", icon_name=ft.Icons.LIBRARY_ADD_ROUNDED,  # Updated Icon
-                accent_color=ft.Colors.LIME_800, navigate_to_route=LOGIN_ROUTE, tooltip="Add Books"),
-            create_nav_card_button(
-                router=self.router, text="Remove Books", icon_name=ft.Icons.DELETE_SWEEP_ROUNDED,  # Updated Icon
-                accent_color=ft.Colors.RED_700, navigate_to_route=LOGIN_ROUTE, tooltip="Remove Books"),
+                router=self.router,
+                text="Manage Books",
+                icon_name=ft.Icons.MENU_BOOK_ROUNDED, # Classic icon for books/ledgers
+                accent_color=ft.Colors.BROWN_600,  # Earthy, traditional color for books
+                navigate_to_route=LOGIN_ROUTE, # Placeholder
+                tooltip="View, edit, or add new lottery ticket books" # More descriptive tooltip
+            ),
         ]
         return self._create_section_quadrant(
-            title="Inventory Control", title_color=ft.Colors.GREEN_900,  # New title color
+            title="Inventory Control",
+            title_color=ft.Colors.GREEN_800,  # Slightly lighter green for better contrast with buttons
             button_row_controls=buttons,
-            gradient_colors=[ft.Colors.LIGHT_GREEN_50, ft.Colors.GREEN_100]  # New gradient
+            gradient_colors=[ft.Colors.GREEN_100, ft.Colors.LIGHT_GREEN_200]  # Adjusted gradient for subtlety
         )
 
     def _build_report_functions_quadrant(self) -> ft.Container:
@@ -149,9 +161,6 @@ class AdminDashboardView(ft.Container):
 
     def _build_management_functions_quadrant(self) -> ft.Container:
         buttons = [
-            create_nav_card_button(
-                router=self.router, text="Add User", icon_name=ft.Icons.PERSON_ADD_ROUNDED,  # Updated Icon
-                accent_color=ft.Colors.TEAL_700, navigate_to_route=LOGIN_ROUTE, tooltip="Add User"),
             create_nav_card_button(
                 router=self.router, text="Manage Users", icon_name=ft.Icons.MANAGE_ACCOUNTS_ROUNDED,  # Updated Icon
                 accent_color=ft.Colors.INDIGO_700, navigate_to_route=LOGIN_ROUTE, tooltip="Manage Users"),
