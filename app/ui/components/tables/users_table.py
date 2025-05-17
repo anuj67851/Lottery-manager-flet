@@ -7,7 +7,6 @@ from app.core.models import User
 from app.services.user_service import UserService
 from app.data.database import get_db_session
 
-
 class UsersTable(ft.Container):
     def __init__(self, page: ft.Page, user_service: UserService, initial_roles_to_display: List[str],
                  on_data_changed: Optional[Callable[[], None]] = None):
@@ -99,7 +98,6 @@ class UsersTable(ft.Container):
             )
         self.datatable.rows = rows
         if self.page: # Ensure table updates if it's already on page
-            self.update()
             self.page.update()
 
 

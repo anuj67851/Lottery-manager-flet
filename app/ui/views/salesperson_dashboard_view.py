@@ -193,7 +193,6 @@ class SalesPersonDashboardView(ft.Container):
     def _handle_table_data_change(self):
         # Placeholder if this view needs to react to table changes directly
         # For example, update a count of users displayed elsewhere on this page.
-        print("Users table data changed.")
         pass
 
 
@@ -245,7 +244,6 @@ class SalesPersonDashboardView(ft.Container):
                         self.users_table_component, # The UsersTable instance
                     ],
                     spacing=15,
-                    # horizontal_alignment=ft.CrossAxisAlignment.STRETCH, # Stretch content within card
                 ),
                 padding=20,
                 border_radius=8,
@@ -264,7 +262,7 @@ class SalesPersonDashboardView(ft.Container):
             ],
             spacing=20, # Spacing between major sections
             expand=True,
-            # horizontal_alignment=ft.CrossAxisAlignment.STRETCH, # Stretch cards to fill width
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Stretch cards to fill width
             scroll=ft.ScrollMode.ADAPTIVE # Add scroll if content overflows
         )
 

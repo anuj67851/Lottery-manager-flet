@@ -84,10 +84,7 @@ class LoginForm(ft.Container):
         try:
             with get_db_session() as db:
                 user_obj = self.auth_service.authenticate_user(db, username, password)
-
-                # making copy since the object above will be detached after login
-                user_data = User(id=user_obj.id, username=user_obj.username, role=user_obj.role)
-            self.on_login_success(user_data)
+            self.on_login_success(user_obj)
         except (AuthenticationError, ValidationError) as ex:
             self.error_text.value = ex.message
             self.error_text.visible = True

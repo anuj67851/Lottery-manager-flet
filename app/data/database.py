@@ -17,7 +17,7 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
 def init_db():
     print(f"Initializing database at: {SQLALCHEMY_DATABASE_URL}")
