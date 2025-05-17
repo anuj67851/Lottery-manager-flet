@@ -80,7 +80,7 @@ class UsersTable(ft.Container):
             if user.role != SALESPERSON_ROLE:
                 if user.is_active:
                     deactivate_button = ft.IconButton(
-                        icon=ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                        icon=ft.Icons.DESKTOP_ACCESS_DISABLED_OUTLINED,
                         tooltip="Deactivate user",
                         icon_color=ft.Colors.RED_ACCENT_700,
                         on_click=lambda e, u=user: self._confirm_deactivate_user_dialog(u)
@@ -88,7 +88,7 @@ class UsersTable(ft.Container):
                     actions_controls.append(deactivate_button)
                 else:
                     reactivate_button = ft.IconButton(
-                        icon=ft.Icons.ADD_CIRCLE_OUTLINE,
+                        icon=ft.Icons.DESKTOP_WINDOWS_ROUNDED,
                         tooltip="Reactivate user",
                         icon_color=ft.Colors.GREEN_ACCENT_700,
                         on_click=lambda e, u=user: self._confirm_reactivate_user_dialog(u)

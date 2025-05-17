@@ -1,6 +1,9 @@
 import flet as ft
 from app.constants import LOGIN_ROUTE
 from app.core.models import User
+from app.ui import router
+from app.ui.components.widgets.function_button import create_nav_card_button
+
 
 class AdminDashboardView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User, license_status: bool, **params):
@@ -22,6 +25,8 @@ class AdminDashboardView(ft.Container):
             bgcolor=ft.Colors.BLUE_700, # Kept original color
             color=ft.Colors.WHITE,      # Kept original color
             actions=[
+                ft.Text(f"Current User: {self.current_user.username}", weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                ft.Container(width=20),
                 ft.Text(f"License: {'Active' if self.license_status else 'Inactive'}", weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
                 ft.Container(width=20), # Spacer
                 ft.IconButton(
@@ -34,24 +39,153 @@ class AdminDashboardView(ft.Container):
         )
 
     def _build_body(self):
-        welcome_message = "Welcome, Admin!"
-        if self.current_user and self.current_user.username:
-            welcome_message = f"Welcome, {self.current_user.username} (Admin)!"
+        functions_section = ft.Container(
+            ft.Column(
+                controls=[
+                    ft.Text("Sale Functions", weight=ft.FontWeight.BOLD, size=20),
+                    ft.Row(
+                        controls=[
+                            create_nav_card_button(
+                                router=router,
+                                text="Sales Entry",
+                                icon_name=ft.Icons.ATTACH_MONEY_ROUNDED,
+                                accent_color=ft.Colors.TEAL_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Add Daily Sales",
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Book Sale",
+                                icon_name=ft.Icons.BOOK_OUTLINED,
+                                accent_color=ft.Colors.BLUE_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Add Book Sale",
+                            ),
+                        ],
+                        expand=2,
+                    ),
+                    ft.Container(
+                        height=20,
+                    ),
+                    ft.Text("Inventory Functions", weight=ft.FontWeight.BOLD, size=20),
+                    ft.Row(
+                        controls=[
+                            create_nav_card_button(
+                                router=router,
+                                text="Open Book",
+                                icon_name=ft.Icons.COLLECTIONS_BOOKMARK_OUTLINED,
+                                accent_color=ft.Colors.GREEN_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Open Book"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Add Stock",
+                                icon_name=ft.Icons.ADD_CIRCLE_OUTLINE,
+                                accent_color=ft.Colors.GREEN_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Add Stock"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Expire Book",
+                                icon_name=ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                                accent_color=ft.Colors.RED_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Expire Book"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Edit Book",
+                                icon_name=ft.Icons.MODE_EDIT_ROUNDED,
+                                accent_color=ft.Colors.TEAL_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Edit Book Info"
+                            ),
+                        ],
+                        expand=1,
+                    ),
+                    ft.Container(
+                        height=20,
+                    ),
+                    ft.Text("Report Functions", weight=ft.FontWeight.BOLD, size=20),
+                    ft.Row(
+                        controls=[
+                            create_nav_card_button(
+                                router=router,
+                                text="Sales by Date",
+                                icon_name=ft.Icons.EVENT_NOTE_OUTLINED,
+                                accent_color=ft.Colors.GREEN_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Sales Report"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Book Open by Date",
+                                icon_name=ft.Icons.BOOK_OUTLINED,
+                                accent_color=ft.Colors.BLUE_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Book Open Report"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Book Expire by Date",
+                                icon_name=ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                                accent_color=ft.Colors.RED_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Book Expire Report"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Book Stock by Date",
+                                icon_name=ft.Icons.MODE_EDIT_ROUNDED,
+                                accent_color=ft.Colors.INDIGO_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Book Stock Report"
+                            ),
+                        ],
+                        expand=1,
+                    ),
+                    ft.Container(
+                        height=20,
+                    ),
+                    ft.Text("User Functions", weight=ft.FontWeight.BOLD, size=20),
+                    ft.Row(
+                        controls=[
+                            create_nav_card_button(
+                                router=router,
+                                text="Add User",
+                                icon_name=ft.Icons.ADD_CIRCLE_OUTLINE_OUTLINED,
+                                accent_color=ft.Colors.GREEN_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Add User"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Manage Users",
+                                icon_name=ft.Icons.MANAGE_ACCOUNTS_OUTLINED,
+                                accent_color=ft.Colors.BLUE_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Manage Users"
+                            ),
+                        ],
+                        expand=1,
+                    ),
+                ],
+            ),
+            expand=1,
+        )
 
         # This is the content that goes *below* the AppBar
-        return ft.Container( # Main content container
-            content=ft.Column(
-                [
-                    ft.Text(welcome_message, size=28, weight=ft.FontWeight.BOLD),
-                    ft.Text("Manage users, books, and view reports.", size=16),
-                ],
-                alignment=ft.MainAxisAlignment.CENTER,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=20,
-            ),
-            padding=50,
-            alignment=ft.alignment.center,
-            expand=True
+        return ft.Column(
+            [
+                functions_section,
+            ],
+            spacing=20, # Spacing between major sections
+            expand=True,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Stretch cards to fill width
+            scroll=ft.ScrollMode.ADAPTIVE, # Add scroll if content overflows
+            width=self.page.width / 2.5,
         )
 
     def logout(self, e):

@@ -60,6 +60,18 @@ class LoginView(ft.Container):
                         offset=ft.Offset(0, 4),
                     ),
                 ),
+                ft.Container(
+                    content=ft.Text(
+                        "© 2025 Anuj Patel · All Rights Reserved · Built using Python and Flet",
+                        size=12,
+                        color=ft.Colors.GREY_400,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    alignment=ft.alignment.center,
+                    padding=10,
+                    margin=ft.margin.only(top=10),
+                ),
+
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
