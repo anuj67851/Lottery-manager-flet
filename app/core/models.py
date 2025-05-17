@@ -85,20 +85,22 @@ class Game(Base):
     __tablename__ = "games"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    name = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=False, unique=False)
     price = Column(Integer, nullable=False)
     total_tickets = Column(Integer, nullable=False)
     is_expired = Column(Boolean, nullable=False, default=False)
     default_ticket_order = Column(String, nullable=False, default=REVERSE_TICKET_ORDER)
+    added_date = Column(DateTime, nullable=False, default=datetime.datetime.now())
+    expired_date = Column(DateTime, nullable=True)
 
     books = relationship("Book", back_populates="game")
-    series_number = Column(Integer, nullable=True)
+    game_number = Column(Integer, nullable=False, unique=True)
 
     def __repr__(self):
         """
         Returns a string representation of the game object.
         """
-        return f"<Game(id={self.id}, name='{self.name}', price={self.price}, total_tickets={self.total_tickets})>"
+        return f"<Game(id={self.id}, name='{self.name}', price={self.price}, total_tickets={self.total_tickets}, game_number={self.game_number}, default_ticket_order='{self.default_ticket_order}', is_expired={self.is_expired})>"
 
 class Book(Base):
     """

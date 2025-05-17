@@ -36,8 +36,7 @@ def create_nav_card_button(
             ft.Icon(
                 name=icon_name,
                 size=icon_size,
-                # Color will be based on theme by default or you can set it
-                color=ft.Colors.with_opacity(0.9, accent_color) if not disabled else ft.Colors.ON_SURFACE_VARIANT, # Make icon slightly more vibrant
+                color=ft.Colors.with_opacity(0.9, accent_color) if not disabled else ft.Colors.ON_SURFACE_VARIANT,
             ),
             ft.Container(height=5), # Small spacer
             ft.Text(
@@ -46,8 +45,6 @@ def create_nav_card_button(
                 size=14, # Slightly smaller default text
                 text_align=ft.TextAlign.CENTER,
                 color=ft.Colors.with_opacity(0.85, accent_color) if not disabled else ft.Colors.ON_SURFACE_VARIANT, # Text also tinted
-                # max_lines=2, # Optional: if text can be long
-                # overflow=ft.TextOverflow.ELLIPSIS, # Optional
             ),
         ],
         alignment=ft.MainAxisAlignment.CENTER,
