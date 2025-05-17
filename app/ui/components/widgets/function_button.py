@@ -16,6 +16,7 @@ def create_nav_card_button(
         disabled: bool = False,
         tooltip: Optional[str] = None,
         height: float = 150,
+        width: float = 150,
 ) -> ft.Card:
 
     effective_router_params = router_params if router_params is not None else {}
@@ -64,11 +65,11 @@ def create_nav_card_button(
         bgcolor=ft.Colors.with_opacity(background_opacity, accent_color) if not disabled else ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
         tooltip=tooltip if not disabled else "Disabled",
         height=height,
+        width=width,
     )
 
     return ft.Card(
         content=clickable_area,
         elevation=5 if not disabled else 1, # Control shadow depth
         shadow_color=ft.Colors.with_opacity(shadow_opacity, accent_color) if not disabled else ft.Colors.BLACK26,
-        expand=True,
     )
