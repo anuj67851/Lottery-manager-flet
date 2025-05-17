@@ -1,11 +1,12 @@
 import flet as ft
 
 from app.core.auth_service import AuthService
+from app.data.crud_license import get_license_status
 from app.ui.components.forms.login_form import LoginForm
 from app.data.crud_users import any_users_exist
 from app.data.database import get_db_session
 from app.constants import ADMIN_ROLE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, \
-    SALESPERSON_DASHBOARD_ROUTE, SALESPERSON_ROLE
+    SALESPERSON_DASHBOARD_ROUTE, SALESPERSON_ROLE, EMPLOYEE_ROLE
 from app.core.models import User
 
 class LoginView(ft.Container):
@@ -65,9 +66,18 @@ class LoginView(ft.Container):
         user_params = {"current_user": user}
         user_role = AuthService.get_user_role(user)
 
+        license_activated = False
+        with get_db_session() as db:
+            license_activated = get_license_status(db)  # Initial license state (e.g., fetch from a backend)
+
+        user_params["license_status"] = license_activated
+
         if user_role == SALESPERSON_ROLE:
             self.router.navigate_to(SALESPERSON_DASHBOARD_ROUTE, **user_params)
-        elif user_role == ADMIN_ROLE:
+        elif license_activated and user_role == ADMIN_ROLE:
             self.router.navigate_to(ADMIN_DASHBOARD_ROUTE, **user_params)
-        else:
+        elif license_activated and user_role == EMPLOYEE_ROLE:
             self.router.navigate_to(EMPLOYEE_DASHBOARD_ROUTE, **user_params)
+        else:
+            self.page.open(ft.SnackBar(ft.Text("License not activated. Please contact your salesperson.")))
+            self.page.update()

@@ -8,15 +8,14 @@ from app.ui.components.tables.users_table import UsersTable # Assuming UsersTabl
 
 
 class SalesPersonDashboardView(ft.Container):
-    def __init__(self, page: ft.Page, router, current_user: User = None, **params):
+    def __init__(self, page: ft.Page, router, current_user: User, license_status: bool, **params):
         super().__init__(expand=True)
         self.page = page
         self.router = router
         self.current_user = current_user
 
         # --- State for License ---
-        with get_db_session() as db:
-            self.license_activated = get_license_status(db)  # Initial license state (e.g., fetch from a backend)
+        self.license_activated = license_status
 
         # --- UI Components ---
         self.users_table = UsersTable(
