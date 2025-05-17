@@ -8,3 +8,7 @@ SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_BASE_DIR.joinpath(DB_FILENAME)}"
 # Application Settings
 APP_TITLE = "Lottery Manager"
 DEFAULT_THEME_MODE = "light" # "light" or "dark"
+
+# Sales Person Info
+SALES_PERSON_USERNAME = "sales"
+SALES_PERSON_PASSWORD = "admin123"

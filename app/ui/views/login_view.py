@@ -12,7 +12,6 @@ from app.constants import (
     LOGIN_ROUTE
 )
 from app.core.models import User
-from app.ui.components.forms.sales_person_creation_form import SalesPersonCreationForm
 
 
 class LoginView(ft.Container):
@@ -23,11 +22,11 @@ class LoginView(ft.Container):
         self.user_service = UserService()
         self.license_service = LicenseService()
         self.auth_service = AuthService()
-
         self.page.appbar = self._build_appbar()
-        self.current_form_container = ft.Container(width=400) # Placeholder for form
+        
+        login_form = LoginForm(page=self.page, on_login_success=self.on_login_success)
+        self.current_form_container = login_form # Placeholder for form
         self.content = self._build_layout() # Build base layout first
-        self._check_initial_setup()         # Then determine which form to show
 
     def _build_appbar(self):
         return ft.AppBar(
@@ -59,6 +58,7 @@ class LoginView(ft.Container):
                         color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK26), # Kept original style
                         offset=ft.Offset(0, 4),
                     ),
+                    width=400,
                 ),
                 ft.Container(
                     content=ft.Text(
@@ -78,29 +78,6 @@ class LoginView(ft.Container):
             spacing=20,
             expand=True,
         )
-
-    def _check_initial_setup(self):
-        with get_db_session() as db:
-            users_exist = self.user_service.any_users_exist(db)
-
-        if not users_exist:
-            # No users exist, show Admin Creation Form
-            admin_form = SalesPersonCreationForm(page=self.page, on_sales_person_created=self._on_sales_person_created_successfully)
-            self.current_form_container.content = admin_form
-        else:
-            # Users exist, show Login Form
-            login_form = LoginForm(page=self.page, on_login_success=self.on_login_success)
-            self.current_form_container.content = login_form
-
-        if self.page: self.page.update()
-
-
-    def _on_sales_person_created_successfully(self):
-        # After sales person is created, switch to login form
-        login_form = LoginForm(page=self.page, on_login_success=self.on_login_success)
-        self.current_form_container.content = login_form
-        if self.page: self.page.update()
-
 
     def on_login_success(self, user: User):
         user_params = {"current_user": user}

@@ -61,8 +61,15 @@ class AdminDashboardView(ft.Container):
                                 navigate_to_route=LOGIN_ROUTE,
                                 tooltip="Add Book Sale",
                             ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Open Book",
+                                icon_name=ft.Icons.COLLECTIONS_BOOKMARK_OUTLINED,
+                                accent_color=ft.Colors.GREEN_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Open Book"
+                            ),
                         ],
-                        expand=2,
                     ),
                     ft.Container(
                         height=20,
@@ -72,38 +79,46 @@ class AdminDashboardView(ft.Container):
                         controls=[
                             create_nav_card_button(
                                 router=router,
-                                text="Open Book",
+                                text="Add Game",
                                 icon_name=ft.Icons.COLLECTIONS_BOOKMARK_OUTLINED,
                                 accent_color=ft.Colors.GREEN_ACCENT_700,
                                 navigate_to_route=LOGIN_ROUTE,
-                                tooltip="Open Book"
+                                tooltip="Add New Game"
                             ),
                             create_nav_card_button(
                                 router=router,
-                                text="Add Stock",
-                                icon_name=ft.Icons.ADD_CIRCLE_OUTLINE,
-                                accent_color=ft.Colors.GREEN_ACCENT_700,
-                                navigate_to_route=LOGIN_ROUTE,
-                                tooltip="Add Stock"
-                            ),
-                            create_nav_card_button(
-                                router=router,
-                                text="Expire Book",
-                                icon_name=ft.Icons.REMOVE_CIRCLE_OUTLINE,
-                                accent_color=ft.Colors.RED_ACCENT_700,
-                                navigate_to_route=LOGIN_ROUTE,
-                                tooltip="Expire Book"
-                            ),
-                            create_nav_card_button(
-                                router=router,
-                                text="Edit Book",
+                                text="Manage Games",
                                 icon_name=ft.Icons.MODE_EDIT_ROUNDED,
                                 accent_color=ft.Colors.TEAL_ACCENT_700,
                                 navigate_to_route=LOGIN_ROUTE,
-                                tooltip="Edit Book Info"
+                                tooltip="Manage Games Info"
+                            ),
+
+                            create_nav_card_button(
+                                router=router,
+                                text="Expire Game",
+                                icon_name=ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                                accent_color=ft.Colors.RED_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Expire Game"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Add Books",
+                                icon_name=ft.Icons.ADD_CIRCLE_OUTLINE,
+                                accent_color=ft.Colors.GREEN_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Add Books"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Remove Books",
+                                icon_name=ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                                accent_color=ft.Colors.RED_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Remove Books"
                             ),
                         ],
-                        expand=1,
                     ),
                     ft.Container(
                         height=20,
@@ -129,7 +144,7 @@ class AdminDashboardView(ft.Container):
                             ),
                             create_nav_card_button(
                                 router=router,
-                                text="Book Expire by Date",
+                                text="Game Expire by Date",
                                 icon_name=ft.Icons.REMOVE_CIRCLE_OUTLINE,
                                 accent_color=ft.Colors.RED_ACCENT_700,
                                 navigate_to_route=LOGIN_ROUTE,
@@ -144,7 +159,6 @@ class AdminDashboardView(ft.Container):
                                 tooltip="Book Stock Report"
                             ),
                         ],
-                        expand=1,
                     ),
                     ft.Container(
                         height=20,
@@ -177,7 +191,6 @@ class AdminDashboardView(ft.Container):
                                 tooltip="Backup Database"
                             ),
                         ],
-                        expand=1,
                     ),
                 ],
             ),

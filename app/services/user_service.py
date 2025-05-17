@@ -19,6 +19,9 @@ class UserService:
     def get_all_users(self, db: Session) -> List[Type[User]]:
         return crud_users.get_all_users(db)
 
+    def check_users_exist(self, db: Session) -> bool:
+        return crud_users.any_users_exist(db)
+
     def create_user(self, db: Session, username: str, password: str, role: str = EMPLOYEE_ROLE) -> User:
         # Validation and business logic can be added here if more complex than CRUD
         if not username or not password or not role:

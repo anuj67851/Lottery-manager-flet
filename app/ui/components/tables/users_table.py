@@ -212,7 +212,7 @@ class UsersTable(ft.Container):
 
 
     def _confirm_deactivate_user_dialog(self, user: User):
-        self.current_deactivate_user_id = user.id # Store ID for deactivation
+        self.current_deactivate_user = user # Store ID for deactivation
 
         self.page.dialog = ft.AlertDialog(
             modal=True,
@@ -230,8 +230,8 @@ class UsersTable(ft.Container):
     def _handle_deactivate_confirmed(self, e=None):
         try:
             with get_db_session() as db:
-                self.user_service.deactivate_user(db, user_id=self.current_deactivate_user_id)
-            self.page.open(ft.SnackBar(ft.Text(f"User (ID: {self.current_deactivate_user_id}) deactivated successfully."), open=True))
+                self.user_service.deactivate_user(db, user_id=self.current_deactivate_user.id)
+            self.page.open(ft.SnackBar(ft.Text(f"User (ID: {self.current_deactivate_user.id}, Username: {self.current_deactivate_user.username}) deactivated successfully."), open=True))
             self._close_dialog()
             self.refresh_data() # Refresh table
         except UserNotFoundError as ex:
@@ -246,7 +246,7 @@ class UsersTable(ft.Container):
             self.page.open(ft.SnackBar(ft.Text(f"An unexpected error occurred: {ex_general}"), open=True, bgcolor=ft.Colors.ERROR))
 
     def _confirm_reactivate_user_dialog(self, user: User):
-        self.current_reactivate_user_id = user.id # Store ID for reactivation
+        self.current_reactivate_user = user # Store user for reactivation
 
         self.page.dialog = ft.AlertDialog(
             modal=True,
@@ -264,8 +264,8 @@ class UsersTable(ft.Container):
     def _handle_reactivate_confirmed(self, e=None):
         try:
             with get_db_session() as db:
-                self.user_service.reactivate_user(db, user_id=self.current_reactivate_user_id)
-            self.page.open(ft.SnackBar(ft.Text(f"User (ID: {self.current_reactivate_user_id}) reactivated successfully."), open=True))
+                self.user_service.reactivate_user(db, user_id=self.current_reactivate_user.id)
+            self.page.open(ft.SnackBar(ft.Text(f"User (ID: {self.current_reactivate_user.id}, Username: {self.current_reactivate_user.username}) reactivated successfully."), open=True))
             self._close_dialog()
             self.refresh_data() # Refresh table
         except UserNotFoundError as ex:

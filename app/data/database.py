@@ -4,8 +4,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 
+from app.constants import SALESPERSON_ROLE
 from app.core.models import Base
-from app.config import SQLALCHEMY_DATABASE_URL, DB_BASE_DIR
+from app.config import SQLALCHEMY_DATABASE_URL, DB_BASE_DIR, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD
+from app.services import UserService
 from app.services.license_service import LicenseService
 
 
@@ -26,6 +28,12 @@ def init_db():
 
     with get_db_session() as db:
         license_service = LicenseService()
+        users_service = UserService()
+
+        if not users_service.check_users_exist(db):
+            print("Running for first time. Populating Sales User Info...")
+            users_service.create_user(db, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD, SALESPERSON_ROLE)
+            print("Sales User Info populated...")
 
         # Ensure a license record exists
         if not license_service.get_license(db):
