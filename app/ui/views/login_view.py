@@ -52,14 +52,13 @@ class LoginView(ft.Container):
                     content=self.current_form_container, # This is where the form goes
                     padding=30,
                     border_radius=12,
-                    bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.BLACK), # Kept original style
+                    bgcolor=ft.Colors.WHITE70, # Kept original style
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=10,
                         color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK26), # Kept original style
                         offset=ft.Offset(0, 4),
                     ),
-                    # width=400, # Width applied to current_form_container directly
                 ),
             ],
             alignment=ft.MainAxisAlignment.CENTER,

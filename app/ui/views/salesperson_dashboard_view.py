@@ -220,6 +220,7 @@ class SalesPersonDashboardView(ft.Container):
                 ),
                 padding=20,
                 border_radius=8,
+                bgcolor=ft.Colors.WHITE70,
             )
         )
 
@@ -250,6 +251,7 @@ class SalesPersonDashboardView(ft.Container):
                 padding=20,
                 border_radius=8,
                 expand=True, # Allow user management to take more space
+                bgcolor=ft.Colors.WHITE70,
             ),
             expand=True # Card expands
         )
@@ -267,7 +269,6 @@ class SalesPersonDashboardView(ft.Container):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Stretch cards to fill width
             scroll=ft.ScrollMode.ADAPTIVE, # Add scroll if content overflows
             width=self.page.width / 2.5,
-
         )
 
     def logout(self, e):
