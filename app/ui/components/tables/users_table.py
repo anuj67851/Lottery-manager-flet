@@ -23,9 +23,8 @@ class UsersTable(ft.Container):
         self.datatable = ft.DataTable(
             columns=[], # Will be set in _build_layout
             rows=[],    # Will be set in _build_layout
-            column_spacing=20,
+            column_spacing=25,
             expand=True,
-            # width=700 # Example width, adjust as needed
         )
         self.content = self._build_layout()
         self.refresh_data() # Load initial data
@@ -184,11 +183,11 @@ class UsersTable(ft.Container):
                 self.user_service.update_user(
                     db,
                     user_id=self.current_edit_user_id,
-                    # username=None, # Assuming username is not changed here
                     password=new_password,
                     role=new_role
                 )
-            self.page.show_snack_bar(ft.SnackBar(ft.Text(f"User details updated successfully."), open=True))
+
+            self.page.open(ft.SnackBar(ft.Text(f"User details updated successfully."), open=True))
             self._close_dialog()
             self.refresh_data() # Refresh table
         except (ValidationError, DatabaseError, UserNotFoundError) as ex:
@@ -198,7 +197,6 @@ class UsersTable(ft.Container):
             error_text_edit.value = f"An unexpected error occurred: {ex_general}"
             error_text_edit.visible = True
 
-        error_text_edit.update()
         self.page.update()
 
 

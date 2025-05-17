@@ -114,7 +114,7 @@ class LoginView(ft.Container):
         else: # License not activated for Admin/Employee
             self.page.open(
                 ft.SnackBar(
-                    content=ft.Text("License not activated. Please contact your salesperson or activate the license."),
+                    content=ft.Text("License not activated. Please contact your salesperson to activate the license."),
                     open=True,
                     duration=4000
                 )

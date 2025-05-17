@@ -105,15 +105,6 @@ class SalesPersonDashboardView(ft.Container):
         self._open_add_user_dialog()
 
     def _open_add_user_dialog(self):
-        username_field = ft.TextField(label="Username", autofocus=True, border_radius=8)
-        password_field = ft.TextField(label="Password", password=True, can_reveal_password=True, border_radius=8)
-        confirm_password_field = ft.TextField(label="Confirm Password", password=True, can_reveal_password=True, border_radius=8)
-
-        role_options = [ft.dropdown.Option(role, role.capitalize()) for role in MANAGED_USER_ROLES]
-        role_dropdown = ft.Dropdown(label="Role", options=role_options, value=ADMIN_ROLE, border_radius=8)
-
-        error_text_add = ft.Text(visible=False, color=ft.Colors.RED_700)
-
         def _save_new_user(e):
             error_text_add.value = ""
             error_text_add.visible = False
@@ -158,22 +149,34 @@ class SalesPersonDashboardView(ft.Container):
             error_text_add.update()
             self.page.update()
 
+        username_field = ft.TextField(label="Username", autofocus=True, border_radius=8, on_submit=_save_new_user)
+        password_field = ft.TextField(label="Password", password=True, can_reveal_password=True, border_radius=8, on_submit=_save_new_user)
+        confirm_password_field = ft.TextField(label="Confirm Password", password=True, can_reveal_password=True, border_radius=8, on_submit=_save_new_user)
+
+        role_options = [ft.dropdown.Option(role, role.capitalize()) for role in MANAGED_USER_ROLES]
+        role_dropdown = ft.Dropdown(label="Role", options=role_options, value=ADMIN_ROLE, border_radius=8)
+
+        error_text_add = ft.Text(visible=False, color=ft.Colors.RED_700)
+
         self.page.dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Add New User"),
-            content=ft.Column(
-                [
-                    username_field,
-                    password_field,
-                    confirm_password_field,
-                    role_dropdown,
-                    error_text_add
-                ],
-                tight=True,
-                spacing=15,
-                width=350,
-                # height=350, # Auto height
-                scroll=ft.ScrollMode.AUTO
+            content=ft.Container(
+                ft.Column(
+                    [
+                        username_field,
+                        password_field,
+                        confirm_password_field,
+                        role_dropdown,
+                        error_text_add
+                    ],
+                    tight=True,
+                    spacing=15,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+                padding=ft.padding.symmetric(horizontal=24, vertical=20),
+                border_radius=8,
+                width=self.page.width / 3.5,
             ),
             actions=[
                 ft.TextButton("Cancel", on_click=self._close_dialog, style=ft.ButtonStyle(color=ft.Colors.BLUE_GREY)),
@@ -181,14 +184,13 @@ class SalesPersonDashboardView(ft.Container):
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.dialog.open = True
-        self.page.update()
+        self.page.open(self.page.dialog)
 
     def _close_dialog(self, e=None):
         if self.page.dialog:
-            self.page.dialog.open = False
-            self.page.update()
+            self.page.close(self.page.dialog)
             self.page.dialog = None
+            self.page.update()
 
     def _handle_table_data_change(self):
         # Placeholder if this view needs to react to table changes directly
@@ -263,7 +265,9 @@ class SalesPersonDashboardView(ft.Container):
             spacing=20, # Spacing between major sections
             expand=True,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Stretch cards to fill width
-            scroll=ft.ScrollMode.ADAPTIVE # Add scroll if content overflows
+            scroll=ft.ScrollMode.ADAPTIVE, # Add scroll if content overflows
+            width=self.page.width / 3,
+
         )
 
     def logout(self, e):
