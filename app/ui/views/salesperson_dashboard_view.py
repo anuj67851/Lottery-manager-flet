@@ -1,5 +1,4 @@
 import flet as ft
-from sqlalchemy import Boolean
 
 from app.constants import LOGIN_ROUTE, SALESPERSON_ROLE, ADMIN_ROLE, EMPLOYEE_ROLE
 from app.core.models import User
