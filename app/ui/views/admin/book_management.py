@@ -3,7 +3,7 @@ import flet as ft
 from app.constants import LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE # Assuming ADMIN_DASHBOARD_ROUTE is where you go back to
 
 
-class GameManagementView(ft.Container):
+class BookManagementView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user, license_status,
                  previous_view_route: str = ADMIN_DASHBOARD_ROUTE,
                  previous_view_params: dict = None,
@@ -40,7 +40,7 @@ class GameManagementView(ft.Container):
                 on_click=self._go_back,
             ),
             leading_width=70, # Give some space for the back button
-            title=ft.Text("Admin Dashboard > Game Management"),
+            title=ft.Text("Admin Dashboard > Book Management"),
             bgcolor=ft.Colors.BLUE_700,
             color=ft.Colors.WHITE,
             actions=[
@@ -62,8 +62,8 @@ class GameManagementView(ft.Container):
     def _build_body(self):
         return ft.Column(
             controls=[
-                ft.Text("Game Management Interface", size=28, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
-                ft.Text("Here you will be able to add, edit, and manage game types.", size=16, text_align=ft.TextAlign.CENTER),
+                ft.Text("Book Management Interface", size=28, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                ft.Text("Here you will be able to add, edit, expire, and manage books.", size=16, text_align=ft.TextAlign.CENTER),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,

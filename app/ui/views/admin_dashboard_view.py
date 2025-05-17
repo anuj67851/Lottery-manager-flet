@@ -1,5 +1,5 @@
 import flet as ft
-from app.constants import LOGIN_ROUTE, GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE
+from app.constants import LOGIN_ROUTE, GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE, BOOK_MANAGEMENT_ROUTE
 from app.core.models import User
 from app.ui.components.widgets.function_button import create_nav_card_button
 
@@ -127,8 +127,9 @@ class AdminDashboardView(ft.Container):
                 text="Manage Books",
                 icon_name=ft.Icons.MENU_BOOK_ROUNDED, # Classic icon for books/ledgers
                 accent_color=ft.Colors.BROWN_600,  # Earthy, traditional color for books
-                navigate_to_route=LOGIN_ROUTE, # Placeholder
-                tooltip="View, edit, or add new lottery ticket books" # More descriptive tooltip
+                navigate_to_route=BOOK_MANAGEMENT_ROUTE, # Placeholder
+                tooltip="View, edit, or add new lottery ticket books", # More descriptive tooltip
+                router_params=self.navigation_params,
             ),
         ]
         return self._create_section_quadrant(
