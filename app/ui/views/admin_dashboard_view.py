@@ -149,7 +149,7 @@ class AdminDashboardView(ft.Container):
                     ft.Container(
                         height=20,
                     ),
-                    ft.Text("User Functions", weight=ft.FontWeight.BOLD, size=20),
+                    ft.Text("Management Functions", weight=ft.FontWeight.BOLD, size=20),
                     ft.Row(
                         controls=[
                             create_nav_card_button(
@@ -167,6 +167,14 @@ class AdminDashboardView(ft.Container):
                                 accent_color=ft.Colors.BLUE_ACCENT_700,
                                 navigate_to_route=LOGIN_ROUTE,
                                 tooltip="Manage Users"
+                            ),
+                            create_nav_card_button(
+                                router=router,
+                                text="Backup Database",
+                                icon_name=ft.Icons.BACKUP_OUTLINED,
+                                accent_color=ft.Colors.BLUE_ACCENT_700,
+                                navigate_to_route=LOGIN_ROUTE,
+                                tooltip="Backup Database"
                             ),
                         ],
                         expand=1,

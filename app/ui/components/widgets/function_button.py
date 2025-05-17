@@ -54,7 +54,6 @@ def create_nav_card_button(
         spacing=4, # Reduced spacing between icon and text
     )
 
-    # The clickable container that forms the main body of the card's content
     clickable_area = ft.Container(
         content=button_internal_content,
         alignment=ft.alignment.center,
