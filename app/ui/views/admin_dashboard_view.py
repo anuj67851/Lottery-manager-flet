@@ -44,9 +44,6 @@ class AdminDashboardView(ft.Container):
                 [
                     ft.Text(welcome_message, size=28, weight=ft.FontWeight.BOLD),
                     ft.Text("Manage users, books, and view reports.", size=16),
-                    ft.Text(f"System License is currently {'ACTIVE' if self.license_status else 'INACTIVE'}.",
-                            size=14, weight=ft.FontWeight.W_500,
-                            color=ft.Colors.GREEN_700 if self.license_status else ft.Colors.RED_700),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
