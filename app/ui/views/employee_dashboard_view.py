@@ -3,29 +3,31 @@ from app.constants import LOGIN_ROUTE
 from app.core.models import User
 
 class EmployeeDashboardView(ft.Container):
-    def __init__(self, page: ft.Page, router, current_user: User = None, **params):
+    def __init__(self, page: ft.Page, router, current_user: User, license_status: bool, **params):
         super().__init__(expand=True)
         self.page = page
         self.router = router
         self.current_user = current_user
+        self.license_status = license_status
 
         # Set the page's AppBar
         self.page.appbar = self._build_appbar()
 
         # The content of this container will be the body of the dashboard
         self.content = self._build_body()
-        # self.page.update()
 
     def _build_appbar(self):
         return ft.AppBar(
             title=ft.Text("Employee Dashboard"),
-            bgcolor=ft.Colors.BLUE_700,
-            color=ft.Colors.WHITE,
+            bgcolor=ft.Colors.BLUE_700, # Kept original color
+            color=ft.Colors.WHITE,      # Kept original color
             actions=[
+                ft.Text(f"License: {'Active' if self.license_status else 'Inactive'}", weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                ft.Container(width=20), # Spacer
                 ft.IconButton(
                     icon=ft.Icons.LOGOUT,
                     tooltip="Logout",
-                    icon_color=ft.Colors.WHITE,
+                    icon_color=ft.Colors.WHITE, # Kept original color
                     on_click=self.logout,
                 ),
             ],
@@ -42,6 +44,9 @@ class EmployeeDashboardView(ft.Container):
                 [
                     ft.Text(welcome_message, size=28, weight=ft.FontWeight.BOLD),
                     ft.Text("Enter sales.", size=16),
+                    ft.Text(f"System License is currently {'ACTIVE' if self.license_status else 'INACTIVE'}.",
+                            size=14, weight=ft.FontWeight.W_500,
+                            color=ft.Colors.GREEN_700 if self.license_status else ft.Colors.RED_700),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -54,5 +59,5 @@ class EmployeeDashboardView(ft.Container):
 
     def logout(self, e):
         self.current_user = None
-        self.page.appbar = None # Clear the appbar when logging out
+        # self.page.appbar = None # Router will handle clearing page.appbar
         self.router.navigate_to(LOGIN_ROUTE)

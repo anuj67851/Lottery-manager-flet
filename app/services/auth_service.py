@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 
-from app.data.crud_users import get_user_by_username
+from app.data.crud_users import get_user_by_username # Direct DAO access for this specific need
 from app.core.models import User
-from app.core.exceptions import AuthenticationError, ValidationError # Import custom exceptions
+from app.core.exceptions import AuthenticationError, ValidationError
 
 class AuthService:
     @staticmethod
@@ -31,14 +31,12 @@ class AuthService:
         user = get_user_by_username(db, username)
 
         if not user:
-            # For login, "Invalid username or password" is better than "User not found"
-            # to avoid username enumeration.
             raise AuthenticationError("Invalid username or password")
 
         if not user.check_password(password):
             raise AuthenticationError("Invalid username or password")
 
-        return user # Return user object directly
+        return user
 
     @staticmethod
     def get_user_role(user: User) -> str:

@@ -18,11 +18,17 @@ class Router:
             SALESPERSON_DASHBOARD_ROUTE: SalesPersonDashboardView,
         }
         self.current_view = None # Keep track of the current view instance
+        self.current_route_name = None # Keep track of current route name
 
     def navigate_to(self, route_name, **params):
-        # Clear the page only if a new view is being loaded
-        if self.current_view:
-            self.page.controls.clear() # Or self.page.remove(self.current_view) if only one view is added
+        # Clear the page only if a new view is being loaded or route changes
+        if self.current_view and self.current_route_name != route_name:
+            self.page.controls.clear() # Clear all controls
+            self.page.appbar = None    # Clear appbar too if views manage it
+            self.page.dialog = None    # Clear any open dialogs
+            self.current_view = None   # Reset current view
+
+        self.current_route_name = route_name # Update current route name
 
         if route_name in self.routes:
             view_class = self.routes[route_name]
@@ -32,7 +38,10 @@ class Router:
         else:
             # Handle unknown route, e.g., show a "Not Found" view or navigate to login
             print(f"Error: Route '{route_name}' not found. Navigating to login.")
-            self.current_view = self.routes[LOGIN_ROUTE](page=self.page, router=self)
+            # Fallback to login view
+            login_view_class = self.routes[LOGIN_ROUTE]
+            self.current_view = login_view_class(page=self.page, router=self)
             self.page.add(self.current_view)
+            self.current_route_name = LOGIN_ROUTE
 
         self.page.update()

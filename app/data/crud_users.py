@@ -1,8 +1,6 @@
-import datetime
-
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from typing import Optional, List, Any
+from typing import Optional, List, Type
 
 from app.core.models import User
 from app.constants import EMPLOYEE_ROLE # Use constant
@@ -14,10 +12,14 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
 def get_user_by_username(db: Session, username: str) -> Optional[User]:
     return db.query(User).filter(User.username == username).first()
 
-def get_users_by_roles(db: Session, roles: List[str]) -> list[type[User]]:
+def get_users_by_roles(db: Session, roles: List[str]) -> List[Type[User]]:
     return db.query(User).filter(User.role.in_(roles)).all()
 
-def create_user(db: Session, username: str, password: str, role: str = EMPLOYEE_ROLE, created_date: datetime = datetime.date.today()) -> User:
+def get_all_users(db: Session) -> List[Type[User]]:
+    return db.query(User).all()
+
+
+def create_user(db: Session, username: str, password: str, role: str = EMPLOYEE_ROLE) -> User:
     """
     Create a new user.
     Raises:
@@ -34,7 +36,8 @@ def create_user(db: Session, username: str, password: str, role: str = EMPLOYEE_
         raise DatabaseError(f"User with username '{username}' already exists.")
 
     try:
-        user = User(username=username, role=role, created_date=created_date)
+        # created_date is handled by SQLAlchemy model default
+        user = User(username=username, role=role)
         user.set_password(password)
         db.add(user)
         db.commit()
@@ -42,11 +45,11 @@ def create_user(db: Session, username: str, password: str, role: str = EMPLOYEE_
         return user
     except IntegrityError: # Should be caught by pre-check, but as a fallback
         db.rollback()
-        raise DatabaseError(f"User with username '{username}' already exists.")
+        raise DatabaseError(f"User with username '{username}' already exists (IntegrityError).")
     except Exception as e:
         db.rollback()
         # Log the original exception e for debugging
-        raise DatabaseError(f"Could not create user: An unexpected error occurred.")
+        raise DatabaseError(f"Could not create user '{username}': An unexpected error occurred: {e}")
 
 
 def update_user(db: Session, user_id: int, username: Optional[str] = None,
@@ -56,30 +59,34 @@ def update_user(db: Session, user_id: int, username: Optional[str] = None,
     Raises:
         UserNotFoundError: If the user with user_id is not found.
         DatabaseError: If the update fails.
+        ValidationError: If new username is empty (if provided).
     """
     user = get_user_by_id(db, user_id)
     if not user:
         raise UserNotFoundError(f"User with ID {user_id} not found.")
 
     try:
-        if username:
+        if username is not None: # Allow empty string if that's a valid state, but typically not for username
+            if not username.strip():
+                raise ValidationError("Username cannot be empty.")
             # Check if new username already exists for another user
             if db.query(User).filter(User.username == username, User.id != user_id).first():
                 raise DatabaseError(f"Username '{username}' is already taken by another user.")
             user.username = username
-        if password:
+        if password: # Only update password if a new one is provided
             user.set_password(password)
         if role:
             user.role = role
         db.commit()
         db.refresh(user)
         return user
-    except IntegrityError:
+    except IntegrityError: # e.g. if unique constraint on username violated by concurrent transaction
         db.rollback()
-        raise DatabaseError(f"Could not update user: Username '{username}' may already exist.")
+        # username check should ideally prevent this, but good to have
+        raise DatabaseError(f"Could not update user {user.username}: Username conflict (IntegrityError).")
     except Exception as e:
         db.rollback()
-        raise DatabaseError(f"Could not update user: An unexpected error occurred.")
+        raise DatabaseError(f"Could not update user {user.username}: An unexpected error occurred: {e}")
 
 
 def delete_user(db: Session, user_id: int) -> bool:
@@ -93,12 +100,14 @@ def delete_user(db: Session, user_id: int) -> bool:
     if not user:
         raise UserNotFoundError(f"User with ID {user_id} not found.")
     try:
+        username_deleted = user.username # For logging or messages
         db.delete(user)
         db.commit()
+        print(f"User '{username_deleted}' (ID: {user_id}) deleted successfully.")
         return True
     except Exception as e:
         db.rollback()
-        raise DatabaseError(f"Could not delete user: An unexpected error occurred.")
+        raise DatabaseError(f"Could not delete user with ID {user_id}: An unexpected error occurred: {e}")
 
 def any_users_exist(db: Session) -> bool:
     return db.query(User).first() is not None

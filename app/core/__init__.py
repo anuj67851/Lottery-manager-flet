@@ -3,5 +3,6 @@ from .exceptions import (
     AuthenticationError,
     UserNotFoundError,
     ValidationError,
-    DatabaseError
+    DatabaseError,
+    WidgetError
 )

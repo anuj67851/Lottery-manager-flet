@@ -1,7 +1,9 @@
 import flet as ft
 from typing import Callable
 
-from app.core.auth_service import AuthService
+from sqlalchemy.orm.exc import DetachedInstanceError
+
+from app.services.auth_service import AuthService # Use AuthService
 from app.data.database import get_db_session
 from app.core.exceptions import AuthenticationError, ValidationError
 from app.core.models import User
@@ -11,6 +13,7 @@ class LoginForm(ft.Container):
         super().__init__()
         self.page = page
         self.on_login_success = on_login_success
+        self.auth_service = AuthService() # Instantiate AuthService
 
         self.username_field = ft.TextField(
             label="Username",
@@ -33,7 +36,8 @@ class LoginForm(ft.Container):
         )
         self.error_text = ft.Text(
             visible=False,
-            weight=ft.FontWeight.W_500
+            weight=ft.FontWeight.W_500,
+            color=ft.Colors.RED_700
         )
         self.login_button = ft.FilledButton(
             text="Login",
@@ -73,21 +77,27 @@ class LoginForm(ft.Container):
     def login_clicked(self, e=None):
         self.error_text.value = ""
         self.error_text.visible = False
-        self.error_text.update()
 
-        username = self.username_field.value
+        username = self.username_field.value.strip()
         password = self.password_field.value
 
         try:
             with get_db_session() as db:
-                user_obj = AuthService.authenticate_user(db, username, password)
-            self.on_login_success(user_obj)
+                user_obj = self.auth_service.authenticate_user(db, username, password)
+
+                # making copy since the object above will be detached after login
+                user_data = User(id=user_obj.id, username=user_obj.username, role=user_obj.role)
+            self.on_login_success(user_data)
         except (AuthenticationError, ValidationError) as ex:
             self.error_text.value = ex.message
             self.error_text.visible = True
-            self.error_text.update()
+        except DetachedInstanceError as di_err:
+            print(f"SQLAlchemy DetachedInstanceError during/after login success: {di_err}")
+            self.error_text.value = "Login successful, but a session error occurred. Please try again or contact support."
+            self.error_text.visible = True
         except Exception as ex_general:
             print(f"Unexpected error in login: {ex_general}")
             self.error_text.value = "An unexpected error occurred during login."
             self.error_text.visible = True
-            self.error_text.update()
+
+        if self.page: self.page.update()

@@ -6,6 +6,7 @@ declarative base. It includes the `User`, `Book`, `BookInstance`,
 and `SalesEntry` models.
 """
 import bcrypt
+import datetime # Ensure datetime is imported
 from sqlalchemy import String, Integer, Column, ForeignKey, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -22,6 +23,7 @@ class User(Base):
         password (str): The hashed password for the user.
         role (str): The role of the user (e.g., "employee", "admin").
                     Defaults to "employee".
+        created_date (DateTime): The date and time when the user was created.
     """
     __tablename__ = "users"
 
@@ -29,7 +31,7 @@ class User(Base):
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="employee")
-    created_date = Column(DateTime, nullable=False)
+    created_date = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
 
     def set_password(self, plain_password: str):
         """
@@ -85,7 +87,7 @@ class Book(Base):
 
     book_instances = relationship("BookInstance", back_populates="book")
     series_number = Column(Integer, nullable=True)
-    
+
     def __repr__(self):
         """
         Returns a string representation of the Book object.
@@ -114,15 +116,15 @@ class BookInstance(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     ticket_order = Column(String, nullable=False, default="reverse")
     is_active = Column(Boolean, nullable=False, default=True)
-    activate_date = Column(DateTime, nullable=False)
+    activate_date = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
     finish_date = Column(DateTime, nullable=True)
-    
+
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     book = relationship("Book", back_populates="book_instances")
 
     sales_entries = relationship("SalesEntry", back_populates="book_instance")
     instance_number = Column(Integer, nullable=True)
-    
+
     def __repr__(self):
         """
         Returns a string representation of the BookInstance object.
@@ -153,16 +155,16 @@ class SalesEntry(Base):
 
     start_number = Column(Integer, nullable=False)
     end_number = Column(Integer, nullable=False)
-    date = Column(DateTime, nullable=False)
+    date = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
     count = Column(Integer, nullable=False) # This will be calculated
     price = Column(Integer, nullable=False) # This will be calculated
 
     book_instance_id = Column(Integer, ForeignKey("book_instance.id"), nullable=False)
     book_instance = relationship("BookInstance", back_populates="sales_entries")
-    
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False) 
+
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     user = relationship("User")
-    
+
     def calculate_count_and_price(self):
         """
         Calculates and sets the 'count' and 'price' for this sales entry.
@@ -179,12 +181,9 @@ class SalesEntry(Base):
                 self.count = self.end_number - self.start_number
             self.price = self.count * self.book_instance.book.price
         else:
-            # Handle cases where book_instance or book_instance.book might be None,
-            # though SQLAlchemy relationships usually prevent this if accessed after commit.
-            # You might want to raise an error or log a warning here.
             self.count = 0
             self.price = 0
-    
+
     def __repr__(self):
         """
         Returns a string representation of the SalesEntry object.
