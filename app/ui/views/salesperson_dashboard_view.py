@@ -266,7 +266,7 @@ class SalesPersonDashboardView(ft.Container):
             expand=True,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Stretch cards to fill width
             scroll=ft.ScrollMode.ADAPTIVE, # Add scroll if content overflows
-            width=self.page.width / 3,
+            width=self.page.width / 2.5,
 
         )
 

@@ -34,5 +34,19 @@ class UserService:
         # Add any pre-delete checks or related actions here
         return crud_users.delete_user(db, user_id)
 
+    def deactivate_user(self, db: Session, user_id: int):
+        user = self.get_user_by_id(db, user_id)
+        if not user:
+            raise ValidationError(f"User with ID {user_id} not found.")
+        user.is_active = False
+        db.commit()
+
+    def reactivate_user(self, db: Session, user_id: int):
+        user = self.get_user_by_id(db, user_id)
+        if not user:
+            raise ValidationError(f"User with ID {user_id} not found.")
+        user.is_active = True
+        db.commit()
+
     def any_users_exist(self, db: Session) -> bool:
         return crud_users.any_users_exist(db)

@@ -25,6 +25,7 @@ class UsersTable(ft.Container):
             rows=[],    # Will be set in _build_layout
             column_spacing=25,
             expand=True,
+            vertical_lines=ft.BorderSide(width=1, color=ft.Colors.with_opacity(0.2, ft.Colors.ON_SURFACE)),
         )
         self.content = self._build_layout()
         self.refresh_data() # Load initial data
@@ -57,6 +58,7 @@ class UsersTable(ft.Container):
             ft.DataColumn(ft.Text("Username", weight=ft.FontWeight.BOLD)),
             ft.DataColumn(ft.Text("Role", weight=ft.FontWeight.BOLD)),
             ft.DataColumn(ft.Text("Created Date", weight=ft.FontWeight.BOLD)),
+            ft.DataColumn(ft.Text("Is Active ?", weight=ft.FontWeight.BOLD)),
             ft.DataColumn(ft.Text("Actions", weight=ft.FontWeight.BOLD), numeric=True), # Align actions to the right
         ]
 
@@ -76,13 +78,22 @@ class UsersTable(ft.Container):
             # and their role cannot be changed from 'salesperson'.
             # Only allow delete for non-salesperson roles.
             if user.role != SALESPERSON_ROLE:
-                delete_button = ft.IconButton(
-                    icon=ft.Icons.DELETE_FOREVER_ROUNDED,
-                    tooltip="Delete user",
-                    icon_color=ft.Colors.RED_ACCENT_700,
-                    on_click=lambda e, u=user: self._confirm_delete_user_dialog(u)
-                )
-                actions_controls.append(delete_button)
+                if user.is_active:
+                    deactivate_button = ft.IconButton(
+                        icon=ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                        tooltip="Deactivate user",
+                        icon_color=ft.Colors.RED_ACCENT_700,
+                        on_click=lambda e, u=user: self._confirm_deactivate_user_dialog(u)
+                    )
+                    actions_controls.append(deactivate_button)
+                else:
+                    reactivate_button = ft.IconButton(
+                        icon=ft.Icons.ADD_CIRCLE_OUTLINE,
+                        tooltip="Reactivate user",
+                        icon_color=ft.Colors.GREEN_ACCENT_700,
+                        on_click=lambda e, u=user: self._confirm_reactivate_user_dialog(u)
+                    )
+                    actions_controls.append(reactivate_button)
 
             rows.append(
                 ft.DataRow(
@@ -91,6 +102,7 @@ class UsersTable(ft.Container):
                         ft.DataCell(ft.Text(user.username)),
                         ft.DataCell(ft.Text(user.role.capitalize())),
                         ft.DataCell(ft.Text(user.created_date.strftime("%Y-%m-%d %H:%M"))),
+                        ft.DataCell(ft.Text("Yes" if user.is_active else "No")),
                         ft.DataCell(ft.Row(actions_controls, spacing=0, alignment=ft.MainAxisAlignment.END)),
                     ]
                 )
@@ -102,9 +114,9 @@ class UsersTable(ft.Container):
 
     def _close_dialog(self, e=None):
         if self.page.dialog:
-            self.page.dialog.open = False
-            self.page.update()
+            self.page.close(self.page.dialog)
             self.page.dialog = None # Clear dialog from page state
+            self.page.update()
 
     def _open_edit_user_dialog(self, user: User):
         self.current_edit_user_id = user.id # Store ID for update
@@ -150,8 +162,7 @@ class UsersTable(ft.Container):
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.dialog.open = True
-        self.page.update()
+        self.page.open(self.page.dialog)
 
     def _save_user_edits(self, role_field: ft.Dropdown, password_field: ft.TextField,
                          confirm_password_field: ft.TextField, error_text_edit: ft.Text):
@@ -200,37 +211,70 @@ class UsersTable(ft.Container):
         self.page.update()
 
 
-    def _confirm_delete_user_dialog(self, user: User):
-        self.current_delete_user_id = user.id # Store ID for deletion
+    def _confirm_deactivate_user_dialog(self, user: User):
+        self.current_deactivate_user_id = user.id # Store ID for deactivation
 
         self.page.dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Confirm Delete", color=ft.Colors.RED_700),
-            content=ft.Text(f"Are you sure you want to permanently delete user '{user.username}' (ID: {user.id})? This action cannot be undone."),
+            content=ft.Text(f"Are you sure you want to deactivate user '{user.username}' (ID: {user.id})?"),
             actions=[
                 ft.TextButton("Cancel", on_click=self._close_dialog),
-                ft.FilledButton("Delete User", style=ft.ButtonStyle(bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE),
-                                on_click=self._handle_delete_confirmed),
+                ft.FilledButton("Deactivate User", style=ft.ButtonStyle(bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE),
+                                on_click=self._handle_deactivate_confirmed),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.dialog.open = True
-        self.page.update()
+        self.page.open(self.page.dialog)
 
-    def _handle_delete_confirmed(self, e=None):
+    def _handle_deactivate_confirmed(self, e=None):
         try:
             with get_db_session() as db:
-                self.user_service.delete_user(db, user_id=self.current_delete_user_id)
-            self.page.open(ft.SnackBar(ft.Text(f"User (ID: {self.current_delete_user_id}) deleted successfully."), open=True))
+                self.user_service.deactivate_user(db, user_id=self.current_deactivate_user_id)
+            self.page.open(ft.SnackBar(ft.Text(f"User (ID: {self.current_deactivate_user_id}) deactivated successfully."), open=True))
             self._close_dialog()
             self.refresh_data() # Refresh table
         except UserNotFoundError as ex:
             self._close_dialog() # Close confirmation dialog
             self.page.open(ft.SnackBar(ft.Text(str(ex)), open=True, bgcolor=ft.Colors.ERROR))
-            self.refresh_data() # Refresh table to reflect that user might already be gone
+            self.refresh_data()
         except DatabaseError as ex:
             self._close_dialog()
-            self.page.open(ft.SnackBar(ft.Text(f"Error deleting user: {ex}"), open=True, bgcolor=ft.Colors.ERROR))
+            self.page.open(ft.SnackBar(ft.Text(f"Error deactivating user: {ex}"), open=True, bgcolor=ft.Colors.ERROR))
+        except Exception as ex_general:
+            self._close_dialog()
+            self.page.open(ft.SnackBar(ft.Text(f"An unexpected error occurred: {ex_general}"), open=True, bgcolor=ft.Colors.ERROR))
+
+    def _confirm_reactivate_user_dialog(self, user: User):
+        self.current_reactivate_user_id = user.id # Store ID for reactivation
+
+        self.page.dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Confirm Reactivate", color=ft.Colors.GREEN_700),
+            content=ft.Text(f"Are you sure you want to Reactivate user '{user.username}' (ID: {user.id})?"),
+            actions=[
+                ft.TextButton("Cancel", on_click=self._close_dialog),
+                ft.FilledButton("Reactivate User", style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE),
+                                on_click=self._handle_reactivate_confirmed),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.open(self.page.dialog)
+
+    def _handle_reactivate_confirmed(self, e=None):
+        try:
+            with get_db_session() as db:
+                self.user_service.reactivate_user(db, user_id=self.current_reactivate_user_id)
+            self.page.open(ft.SnackBar(ft.Text(f"User (ID: {self.current_reactivate_user_id}) reactivated successfully."), open=True))
+            self._close_dialog()
+            self.refresh_data() # Refresh table
+        except UserNotFoundError as ex:
+            self._close_dialog() # Close confirmation dialog
+            self.page.open(ft.SnackBar(ft.Text(str(ex)), open=True, bgcolor=ft.Colors.ERROR))
+            self.refresh_data()
+        except DatabaseError as ex:
+            self._close_dialog()
+            self.page.open(ft.SnackBar(ft.Text(f"Error reactivating user: {ex}"), open=True, bgcolor=ft.Colors.ERROR))
         except Exception as ex_general:
             self._close_dialog()
             self.page.open(ft.SnackBar(ft.Text(f"An unexpected error occurred: {ex_general}"), open=True, bgcolor=ft.Colors.ERROR))

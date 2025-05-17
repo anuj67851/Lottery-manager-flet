@@ -74,7 +74,7 @@ class LoginView(ft.Container):
 
         if not users_exist:
             # No users exist, show Admin Creation Form
-            admin_form = SalesPersonCreationForm(page=self.page, on_admin_created=self._on_sales_person_created_successfully)
+            admin_form = SalesPersonCreationForm(page=self.page, on_sales_person_created=self._on_sales_person_created_successfully)
             self.current_form_container.content = admin_form
         else:
             # Users exist, show Login Form

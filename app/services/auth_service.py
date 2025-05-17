@@ -36,6 +36,9 @@ class AuthService:
         if not user.check_password(password):
             raise AuthenticationError("Invalid username or password")
 
+        if not user.is_active:
+            raise AuthenticationError("User is not active")
+
         return user
 
     @staticmethod
