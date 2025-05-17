@@ -11,6 +11,8 @@ from sqlalchemy import String, Integer, Column, ForeignKey, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
+from app.constants import REVERSE_TICKET_ORDER
+
 Base = declarative_base()
 
 class User(Base):
@@ -78,6 +80,7 @@ class Game(Base):
         total_tickets (int): The total number of tickets available for this game type.
         books (relationship): A list of book associated with this game.
         series_number (int, optional): An optional series number for the game.
+        default_ticket_order (str, optional): The default order of tickets (e.g., "reverse", "forward").
     """
     __tablename__ = "games"
 
@@ -86,6 +89,7 @@ class Game(Base):
     price = Column(Integer, nullable=False)
     total_tickets = Column(Integer, nullable=False)
     is_expired = Column(Boolean, nullable=False, default=False)
+    default_ticket_order = Column(String, nullable=False, default=REVERSE_TICKET_ORDER)
 
     books = relationship("Book", back_populates="game")
     series_number = Column(Integer, nullable=True)
@@ -116,13 +120,14 @@ class Book(Base):
     __tablename__ = "books"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    ticket_order = Column(String, nullable=False, default="reverse")
     is_active = Column(Boolean, nullable=False, default=True)
     activate_date = Column(DateTime, nullable=False, default=datetime.datetime.now())
     finish_date = Column(DateTime, nullable=True)
 
     game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
     game = relationship("Game", back_populates="books")
+
+    ticket_order = Column(String, nullable=False, default=game.default_ticket_order)
 
     sales_entries = relationship("SalesEntry", back_populates="book")
     instance_number = Column(Integer, nullable=True)
@@ -177,7 +182,7 @@ class SalesEntry(Base):
         'count' and 'price' are not manually set.
         """
         if self.book and self.book.game:
-            if self.book.ticket_order == "reverse":
+            if self.book.ticket_order == REVERSE_TICKET_ORDER:
                 self.count = self.start_number - self.end_number
             else: # Assuming "forward" or any other order implies end_number > start_number
                 self.count = self.end_number - self.start_number
