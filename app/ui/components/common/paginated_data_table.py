@@ -302,19 +302,48 @@ class PaginatedDataTable(ft.Container, Generic[T]):
 
     def _update_datatable_rows(self):
         if not self.datatable.columns:
-            self._initialize_columns()
+            self._initialize_columns() # Ensures self.datatable.columns is populated
+
+        num_defined_columns = len(self.datatable.columns) if self.datatable.columns else 0
 
         if not self._displayed_data:
-            colspan = len(self.datatable.columns) if self.datatable.columns else 1
-            self.datatable.rows = [ft.DataRow([ft.DataCell(ft.Text(self.no_data_message, italic=True), colspan=colspan)])]
+            if num_defined_columns > 0:
+                # This is the row displayed when there's no data.
+                # It needs one DataCell for each defined DataColumn.
+
+                # Create the first cell with the "No data" message.
+                no_data_text_widget = ft.Text(
+                    self.no_data_message,
+                    italic=True,
+                    text_align=ft.TextAlign.CENTER,
+                )
+                first_cell = ft.DataCell(no_data_text_widget)
+                # Set its colspan to span all columns.
+                first_cell.colspan = num_defined_columns
+
+                # Initialize the list of cells for this row with the first cell.
+                cells_for_no_data_row = [first_cell]
+
+                # Add (N-1) empty DataCells to make up the total column count.
+                # These cells are structurally required by DataTable, even if the first cell spans them.
+                # They won't take up visual space if the colspan of the first cell is correctly rendered.
+                for _ in range(1, num_defined_columns):
+                    cells_for_no_data_row.append(ft.DataCell(ft.Text(""))) # Empty content
+
+                self.datatable.rows = [ft.DataRow(cells=cells_for_no_data_row)]
+            else:
+                # No columns defined, so no rows can be added.
+                self.datatable.rows = []
         else:
+            # Logic for when there IS data (this part should be okay)
             start_index = (self._current_page_number - 1) * self.rows_per_page
             end_index = start_index + self.rows_per_page
             paginated_items = self._displayed_data[start_index:end_index]
             self.datatable.rows = [self._build_datarow(item) for item in paginated_items]
 
         self._update_pagination_controls()
-        if self.page and self.page.controls: self.page.update()
+        if self.page and self.page.controls: # Ensure page and controls exist before updating
+            self.page.update()
 
 
     def _update_pagination_controls(self):

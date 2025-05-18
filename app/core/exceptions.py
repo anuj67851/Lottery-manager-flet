@@ -27,3 +27,8 @@ class DatabaseError(AppException):
 class WidgetError(AppException):
     """Raised for errors during widget operations (e.g., invalid state, invalid configuration)."""
     pass
+
+
+class BookNotFoundError(AppException):
+    """Raised when a specific book is expected but not found (e.g., when updating/deleting by ID)."""
+    pass

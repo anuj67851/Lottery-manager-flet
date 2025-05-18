@@ -7,7 +7,7 @@ and `SalesEntry` models.
 """
 import bcrypt
 import datetime # Ensure datetime is imported
-from sqlalchemy import String, Integer, Column, ForeignKey, Boolean, DateTime
+from sqlalchemy import String, Integer, Column, ForeignKey, Boolean, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -110,34 +110,29 @@ class Game(Base):
 class Book(Base):
     """
     Represents an instance of a book, often a specific print run or batch.
-
-    Attributes:
-        id (int): The primary key for the book.
-        ticket_order (str): The order of tickets (e.g., "reverse", "forward").
-                            Defaults to "reverse".
-        is_active (bool): Whether this book is currently active for sales.
-                          Defaults to True.
-        activate_date (DateTime): The date when this book became active.
-        finish_date (DateTime, optional): The date when this book was finished or deactivated.
-        game_id (int): Foreign key referencing the `Game` this Book belongs to.
-        game (relationship): The `Game` object this Book is associated with.
-        sales_entries (relationship): A list of sales entries associated with this book.
-        book_number (int): Book number for this book.
     """
     __tablename__ = "books"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    ticket_order = Column(String, nullable=False) # Will be set based on game if not provided
-    is_active = Column(Boolean, nullable=False, default=True)
-    activate_date = Column(DateTime, nullable=False, default=datetime.datetime.now) # Corrected
+    # CRITICAL CHANGE: book_number is now String(7) to preserve leading zeros.
+    book_number = Column(String(7), nullable=False)
+
+    ticket_order = Column(String, nullable=False) # Will be set based on game
+
+    # is_active defaults to False. Book must be explicitly activated.
+    is_active = Column(Boolean, nullable=False, default=False)
+    # activate_date is set when book becomes active. Nullable.
+    activate_date = Column(DateTime, nullable=True)
     finish_date = Column(DateTime, nullable=True)
-    current_ticket_number = Column(Integer, nullable=False)
+    current_ticket_number = Column(Integer, nullable=False) # Initialized based on game and order
 
     game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
     game = relationship("Game", back_populates="books")
 
     sales_entries = relationship("SalesEntry", back_populates="book")
-    book_number = Column(Integer, nullable=False)
+
+    # Ensure a book number is unique for a given game
+    __table_args__ = (UniqueConstraint('game_id', 'book_number', name='_game_id_book_number_uc'),)
 
     def __init__(self, **kwargs):
         """
@@ -145,44 +140,26 @@ class Book(Base):
         Sets default ticket_order from the game if not specified.
         Sets initial current_ticket_number based on order and game's total_tickets.
         """
-        # Ensure 'game' is resolved if 'game_id' is passed, or 'game' object itself
-        # This logic is usually handled by SQLAlchemy relationships after the object is added to a session.
-        # For __init__, we rely on 'game' being passed or correctly set up by the caller if needed immediately.
-
         super().__init__(**kwargs) # Initialize SQLAlchemy mapped attributes
 
-        if 'ticket_order' not in kwargs and self.game:
-            self.ticket_order = self.game.default_ticket_order
-        elif 'ticket_order' not in kwargs and not self.game:
-            # This case is problematic; ticket_order depends on the game.
-            # Ensure game is associated before or during Book creation.
-            # For now, we might need to defer this or ensure game is always present.
-            # Or set a temporary default if game is not yet known, though not ideal.
-            # Let's assume self.game will be available or ticket_order is explicitly passed.
-            pass
-
-
-        # Initialize current_ticket_number. This needs self.game to be populated.
-        # This might be better handled in a post-init hook or after association if game is not available in __init__.
-        # If game object (self.game) is available (e.g., passed in kwargs or set by relationship before commit)
+        # If game object is available (e.g., passed in kwargs or set by relationship)
         if self.game:
+            if 'ticket_order' not in kwargs or self.ticket_order is None: # Ensure ticket_order isn't already set
+                self.ticket_order = self.game.default_ticket_order
+
             if self.ticket_order == REVERSE_TICKET_ORDER:
                 self.current_ticket_number = self.game.total_tickets
             else: # FORWARD_TICKET_ORDER
                 self.current_ticket_number = 0
-        # else:
-        # If self.game is not yet set, current_ticket_number might not be correctly initialized here.
-        # This could be an issue if the object is used before being fully associated and flushed.
-        # One approach: if game_id is provided, the caller must ensure the game exists and handle this logic.
-        # Another: rely on SQLAlchemy to load `self.game` if `game_id` is set, but that's usually after session add.
-        # For now, the original logic is preserved, assuming self.game is available.
+        elif 'current_ticket_number' not in kwargs: # Fallback if game not present during init
+            # This might need adjustment if ticket_order is also not known
+            self.current_ticket_number = 0 # Or some other sensible default or raise error
 
 
     def __repr__(self):
-        """
-        Returns a string representation of the BookInstance object.
-        """
-        return f"<Book(id={self.id}, game_id={self.game_id}, ticket_order='{self.ticket_order}', is_active={self.is_active}, activate_date={self.activate_date}, finish_date={self.finish_date})>"
+        return (f"<Book(id={self.id}, game_id={self.game_id}, book_number='{self.book_number}', "
+                f"ticket_order='{self.ticket_order}', is_active={self.is_active})>")
+
 
 class SalesEntry(Base):
     """

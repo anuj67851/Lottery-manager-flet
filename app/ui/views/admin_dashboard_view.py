@@ -99,7 +99,7 @@ class AdminDashboardView(ft.Container):
             ),
             create_nav_card_button(
                 router=self.router, text="Manage Books", icon_name=ft.Icons.MENU_BOOK_ROUNDED,
-                accent_color=ft.Colors.BROWN_600, navigate_to_route=BOOK_MANAGEMENT_ROUTE, # Placeholder, assuming BOOK_MANAGEMENT_ROUTE
+                accent_color=ft.Colors.BROWN_600, navigate_to_route=BOOK_MANAGEMENT_ROUTE,
                 tooltip="View, edit, or add lottery ticket books", router_params=self.navigation_params_for_children,
             ),
         ]

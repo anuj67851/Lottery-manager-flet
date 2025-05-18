@@ -5,5 +5,6 @@ from .exceptions import (
     GameNotFoundError,
     ValidationError,
     DatabaseError,
-    WidgetError
+    WidgetError,
+    BookNotFoundError,
 )
