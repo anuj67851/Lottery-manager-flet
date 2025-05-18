@@ -6,9 +6,9 @@ from contextlib import contextmanager
 
 from app.constants import SALESPERSON_ROLE, ADMIN_ROLE
 from app.core.models import Base
-from app.config import SQLALCHEMY_DATABASE_URL, DB_BASE_DIR, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD
-from app.services import UserService # Direct import for initialization
-from app.services.license_service import LicenseService # Direct import
+from app.config import SQLALCHEMY_DATABASE_URL, DB_BASE_DIR, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD, VERSION, \
+    VERSION_CONFIG
+from app.services import UserService, ConfigurationService  # Direct import for initialization
 
 
 # Ensure the database directory exists
@@ -50,7 +50,7 @@ def init_db():
 
 def run_initialization_script(db: Session):
     # TODO : FIX THIS IN FINAL PRODUCT (REMOVE ADMIN CREATION AND LICENSE TO FALSE, CHANGE SALES PASSWORD TOO)
-    license_service = LicenseService()
+    config_service = ConfigurationService()
     users_service = UserService()
 
     # Create Salesperson and Admin only if no users exist at all
@@ -63,11 +63,20 @@ def run_initialization_script(db: Session):
         print("Default admin user created.")
 
     # Ensure a license record exists, default to True (active) for development as per original
-    if not license_service.get_license(db):
+    if not config_service.get_license(db):
         print("Creating initial license record (active for dev)...")
-        license_service.create_license_if_not_exists(db, license_is_active=True) # Set to True as per original behavior
+        config_service.create_license_if_not_exists(db, license_is_active=True) # Set to True as per original behavior
         print("Initial license record created.")
-    # else: # If license exists, ensure it's active for dev as per original logic
-    #     if not license_service.get_license_status(db):
-    #         print("Activating existing license for dev...")
-    #         license_service.set_license_status(db, True)
+
+    version = config_service.get_version(db)
+    if not version:
+        print("Creating version record...")
+        config_service.create_version(db)
+        print("Version record created.")
+    else:
+        version = float(version.get_value())
+        print(f"Version record already exists. Skipping creation. Current version: {version}")
+
+        if float(VERSION) > version:
+            print(f"Need to perform migration from {version} to {VERSION}. Running migration script...")
+

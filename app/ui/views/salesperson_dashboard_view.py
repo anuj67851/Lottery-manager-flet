@@ -3,7 +3,7 @@ import flet as ft
 from app.constants import SALESPERSON_ROLE, ADMIN_ROLE, EMPLOYEE_ROLE, MANAGED_USER_ROLES
 from app.core.models import User
 from app.core.exceptions import ValidationError, DatabaseError
-from app.services.license_service import LicenseService
+from app.services.configuration_service import ConfigurationService
 from app.services.user_service import UserService
 from app.data.database import get_db_session
 from app.ui.components.tables.users_table import UsersTable # UsersTable (now PaginatedDataTable)
@@ -17,7 +17,7 @@ class SalesPersonDashboardView(ft.Container):
         self.page = page
         self.router = router
         self.current_user = current_user
-        self.license_service = LicenseService()
+        self.license_service = ConfigurationService()
         self.user_service = UserService()
 
         self.license_activated = license_status # Initial status from login

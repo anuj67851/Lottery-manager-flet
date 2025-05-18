@@ -218,14 +218,19 @@ class SalesEntry(Base):
         """
         return f"<SalesEntry(id={self.id}, book_id={self.book_id}, user_id={self.user_id}, start_number={self.start_number}, end_number={self.end_number}, date={self.date}, count={self.count}, price={self.price})>"
 
-class License(Base):
-    __tablename__ = "license"
+class Configuration(Base):
+    __tablename__ = "configurations"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    is_active = Column(Boolean, nullable=False, default=False)
 
-    def set_status(self, status: bool):
-        self.is_active = status
+    name =  Column(String, nullable=False, unique=True)
+    value = Column(String, nullable=False)
+
+    def get_value(self):
+        return self.value
+
+    def set_value(self, value):
+        self.value = value
 
     def __repr__(self):
-        return f"<License(id={self.id}, is_active={self.is_active})>"
+        return f"<Configuration(id={self.id}, name='{self.name}', value='{self.value}')>"

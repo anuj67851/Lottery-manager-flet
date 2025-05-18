@@ -1,7 +1,7 @@
 import flet as ft
 
 from app.services.auth_service import AuthService
-from app.services.license_service import LicenseService
+from app.services.configuration_service import ConfigurationService
 from app.services.user_service import UserService
 from app.ui.components.forms.login_form import LoginForm
 from app.data.database import get_db_session
@@ -22,7 +22,7 @@ class LoginView(ft.Container):
         # Services are typically not instantiated per view, but rather passed or accessed globally/via DI.
         # For simplicity here, keeping them as instance variables if needed by methods in this view.
         self.user_service = UserService()
-        self.license_service = LicenseService()
+        self.license_service = ConfigurationService()
         self.auth_service = AuthService() # AuthService will be used by LoginForm
 
         self.page.appbar = create_appbar(
