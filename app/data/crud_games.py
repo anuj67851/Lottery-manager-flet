@@ -10,7 +10,7 @@ def get_game_by_game_number(db: Session, game_number: int) -> Game | None: # Typ
     return db.query(Game).filter(Game.game_number == game_number).first()
 
 
-def create_game(db: Session, game_name: str, price: int, total_tickets: int, game_number: int, order: str) -> Game: # price is int (cents)
+def create_game(db: Session, game_name: str, price: int, total_tickets: int, game_number: int, order: str) -> Game: # price is int
     if not game_name:
         raise ValidationError("Game Name is required for creating a Game.")
     if price is None or price < 0: # price can be 0 for free games, but not negative
@@ -29,7 +29,7 @@ def create_game(db: Session, game_name: str, price: int, total_tickets: int, gam
     try:
         game = Game(
             name=game_name,
-            price=price, # Expecting price in cents
+            price=price, # Expecting price
             total_tickets=total_tickets,
             default_ticket_order=order,
             game_number=game_number,

@@ -11,10 +11,10 @@ from app.data import crud_games
 
 class GameService:
 
-    def create_game(self, db: Session, game_name: str, price_cents: int, total_tickets: int, game_number: int, order: str = REVERSE_TICKET_ORDER) -> Game:
+    def create_game(self, db: Session, game_name: str, price: int, total_tickets: int, game_number: int, order: str = REVERSE_TICKET_ORDER) -> Game:
         if not game_name: # Basic validation, more complex rules could be here
             raise ValidationError("Game Name is required.")
-        if price_cents is None or price_cents < 0:
+        if price is None or price < 0:
             raise ValidationError("Price must be a non-negative value.")
         if not total_tickets or total_tickets <= 0:
             raise ValidationError("Total Tickets must be a positive number.")
@@ -24,7 +24,7 @@ class GameService:
             raise ValidationError(f"Invalid ticket order specified: {order}.")
 
         # crud_games.create_game handles DatabaseError if game_number exists
-        return crud_games.create_game(db, game_name, price_cents, total_tickets, game_number, order)
+        return crud_games.create_game(db, game_name, price, total_tickets, game_number, order)
 
     def get_all_games(self, db: Session) -> list[Game]: # Added Session type hint
         return crud_games.get_all_games_sort_by_expiration_prices(db)

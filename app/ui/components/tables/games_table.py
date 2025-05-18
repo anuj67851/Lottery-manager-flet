@@ -32,7 +32,7 @@ class GamesTable(PaginatedDataTable[Game]):
              "display_formatter": lambda val: ft.Text(str(val), size=12.5)},
             {"key": "price", "label": "Price ($)", "sortable": True, "numeric": True, "searchable": True,
              "display_formatter": lambda val: ft.Text(f"{val}", size=12.5),
-             "custom_sort_value_getter": lambda game: game.price}, # Sort by cents
+             "custom_sort_value_getter": lambda game: game.price},
             {"key": "total_tickets", "label": "Tickets", "sortable": True, "numeric": True, "searchable": True,
              "display_formatter": lambda val: ft.Text(str(val), size=12.5)},
             {"key": "calculated_total_value", "label": "Value ($)", "sortable": True, "numeric": True, "searchable": True,

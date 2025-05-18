@@ -76,7 +76,7 @@ class Game(Base):
     Attributes:
         id (int): The primary key for the game.
         name (str): The unique name of the game.
-        price (int): The price of one ticket for the game (in cents).
+        price (int): The price of one ticket for the game.
         total_tickets (int): The total number of tickets available for this game type.
         books (relationship): A list of book associated with this game.
         game_number (int): Game number for the game.
@@ -86,7 +86,7 @@ class Game(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String, nullable=False, unique=False)
-    price = Column(Integer, nullable=False) # Price in cents
+    price = Column(Integer, nullable=False) # Price
     total_tickets = Column(Integer, nullable=False)
     is_expired = Column(Boolean, nullable=False, default=False)
     default_ticket_order = Column(String, nullable=False, default=REVERSE_TICKET_ORDER)
@@ -97,7 +97,7 @@ class Game(Base):
     game_number = Column(Integer, nullable=False, unique=True)
 
     @property
-    def calculated_total_value(self) -> int: # In cents
+    def calculated_total_value(self) -> int:
         return (self.price * self.total_tickets) if self.price is not None and self.total_tickets is not None else 0
 
 
@@ -172,7 +172,7 @@ class SalesEntry(Base):
         date (DateTime): The date of the sale.
         count (int): The number of tickets sold in this entry.
                      Calculated based on start_number, end_number, and ticket_order.
-        price (int): The total price for this sales entry (in cents).
+        price (int): The total price for this sales entry.
                      Calculated based on count and book price.
         book_id (int): Foreign key referencing the `Book` of this sale.
         book (relationship): The `Book` object associated with this sale.
@@ -187,7 +187,7 @@ class SalesEntry(Base):
     end_number = Column(Integer, nullable=False)
     date = Column(DateTime, nullable=False, default=datetime.datetime.now) # Corrected
     count = Column(Integer, nullable=False) # This will be calculated
-    price = Column(Integer, nullable=False) # This will be calculated (in cents)
+    price = Column(Integer, nullable=False) # This will be calculated
 
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     book = relationship("Book", back_populates="sales_entries")
@@ -198,7 +198,7 @@ class SalesEntry(Base):
     def calculate_count_and_price(self):
         """
         Calculates and sets the 'count' and 'price' for this sales entry.
-        Price is stored in cents.
+        Price is stored in dollars.
         This method should be called before saving the sales entry if
         'count' and 'price' are not manually set.
         """
@@ -207,7 +207,7 @@ class SalesEntry(Base):
                 self.count = self.start_number - self.end_number
             else: # Assuming "forward" or any other order implies end_number > start_number
                 self.count = self.end_number - self.start_number
-            self.price = self.count * self.book.game.price # game.price is in cents
+            self.price = self.count * self.book.game.price # game.price
         else:
             self.count = 0
             self.price = 0
