@@ -1,6 +1,7 @@
 from typing import Optional, List, Type
 from sqlalchemy.orm import Session
 
+from app.core import UserNotFoundError
 from app.data import crud_users
 from app.core.models import User
 from app.core.exceptions import ValidationError
@@ -40,14 +41,14 @@ class UserService:
     def deactivate_user(self, db: Session, user_id: int):
         user = self.get_user_by_id(db, user_id)
         if not user:
-            raise ValidationError(f"User with ID {user_id} not found.")
+            raise UserNotFoundError(f"User with ID {user_id} not found.")
         user.is_active = False
         db.commit()
 
     def reactivate_user(self, db: Session, user_id: int):
         user = self.get_user_by_id(db, user_id)
         if not user:
-            raise ValidationError(f"User with ID {user_id} not found.")
+            raise UserNotFoundError(f"User with ID {user_id} not found.")
         user.is_active = True
         db.commit()
 

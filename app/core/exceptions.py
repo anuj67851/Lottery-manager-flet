@@ -12,6 +12,10 @@ class UserNotFoundError(AppException):
     """Raised when a specific user is expected but not found (e.g., when updating/deleting by ID)."""
     pass
 
+class GameNotFoundError(AppException):
+    """Raised when a specific game is expected but not found (e.g., when updating/deleting by ID)."""
+    pass
+
 class ValidationError(AppException):
     """Raised for data validation errors (e.g., missing fields, invalid format)."""
     pass

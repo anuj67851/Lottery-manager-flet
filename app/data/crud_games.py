@@ -42,3 +42,11 @@ def create_game(db, game_name, price, total_tickets, game_number, order) -> Game
         db.rollback()
         # Log the original exception e for debugging
         raise DatabaseError(f"Could not create game '{game_name}': An unexpected error occurred: {e}")
+
+
+def get_all_games_sort_by_expiration_prices(db) -> list[Game]:
+    return db.query(Game).order_by(Game.is_expired).order_by(Game.price).all()
+
+
+def get_game_by_id(db, game_id):
+    return db.query(Game).filter(Game.id == game_id).first()

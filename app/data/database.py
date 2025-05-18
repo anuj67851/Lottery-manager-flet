@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 
-from app.constants import SALESPERSON_ROLE
+from app.constants import SALESPERSON_ROLE, ADMIN_ROLE
 from app.core.models import Base
 from app.config import SQLALCHEMY_DATABASE_URL, DB_BASE_DIR, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD
 from app.services import UserService
@@ -43,6 +43,7 @@ def init_db():
 
 
 def run_initialization_script(db: Session):
+    # TODO : FIX THIS IN FINAL PRODUCT (REMOVE ADMIN CREATION AND LICENSE TO FALSE, CHANGE SALES PASSWORD TOO)
     license_service = LicenseService()
     users_service = UserService()
 
@@ -50,10 +51,11 @@ def run_initialization_script(db: Session):
         print("Running for first time. Populating Sales User Info...")
         users_service.create_user(db, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD, SALESPERSON_ROLE)
         print("Sales User Info populated...")
+        users_service.create_user(db, "admin", SALES_PERSON_PASSWORD, ADMIN_ROLE)
 
     # Ensure a license record exists
     if not license_service.get_license(db):
         print("Creating initial license record (inactive)...")
-        license_service.create_license_if_not_exists(db)
+        license_service.create_license_if_not_exists(db, license=True)
         print("Initial license record created.")
 

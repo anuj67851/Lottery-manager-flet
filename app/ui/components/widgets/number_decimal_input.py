@@ -21,7 +21,7 @@ class NumberDecimalField(ft.TextField):
             if self.is_integer_only:
                 default_hint = "e.g., 123"
             elif self.is_money_field:
-                default_hint = f"e.g., {currency_symbol}10.99"
+                default_hint = f"e.g., {currency_symbol}10.50"
             else:
                 default_hint = "e.g., 10.99 or 10"
         else:

@@ -5,6 +5,7 @@ from app.constants import LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE, \
 from app.core import ValidationError, DatabaseError
 from app.data.database import get_db_session
 from app.services.game_service import GameService
+from app.ui.components.tables.games_table import GamesTable
 from app.ui.components.widgets.number_decimal_input import NumberDecimalField
 
 
@@ -19,6 +20,7 @@ class GameManagementView(ft.Container):
         self.router = router
         self.current_user = current_user
         self.license_status = license_status
+        self.total_games = 0
 
         # Store the route and params for the "Go Back" functionality
         self.previous_view_route = previous_view_route
@@ -26,7 +28,8 @@ class GameManagementView(ft.Container):
 
         self.games_table_component = GamesTable(
             page=self.page,
-            on_data_changed=self._handle_table_data_change # Optional: if other parts of this view need to react
+            on_data_changed=self._handle_table_data_change,
+            game_service=self.game_service
         )
 
         self.page.appbar = self._build_appbar()
@@ -79,6 +82,9 @@ class GameManagementView(ft.Container):
                         ft.Row(
                             [
                                 ft.Text("Game Management", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD, expand=True),
+                                ft.Text(f"Total Games: {self.total_games}", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD),
+                                ft.Text(f"Active Games: {self.active_games}", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD),
+                                ft.Text(f"Expired Games: {self.expired_games}", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD),
                                 ft.FilledButton(
                                     "Add New Game",
                                     icon=ft.Icons.GAMEPAD_OUTLINED, # Kept icon
@@ -109,7 +115,7 @@ class GameManagementView(ft.Container):
             expand=True,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER, # Stretch cards to fill width
             scroll=ft.ScrollMode.ADAPTIVE, # Add scroll if content overflows
-            width=self.page.width / 2.5,
+            width=self.page.width / 1.5,
         )
 
     def _handle_add_game_click(self, e):
@@ -121,10 +127,10 @@ class GameManagementView(ft.Container):
             error_text_add.visible = False
 
             game_name = game_name_field.value.strip()
-            price = price_field.value
-            total_tickets = total_tickets_field.value
+            price = price_field.get_value_as_int()
+            total_tickets = total_tickets_field.get_value_as_int()
             order = ticket_order_dropdown.value
-            game_number = game_number_field.value
+            game_number = game_number_field.get_value_as_int()
 
             if not game_name or not price or not total_tickets or not order or not game_number:
                 error_text_add.value = "All fields are required."
@@ -135,7 +141,7 @@ class GameManagementView(ft.Container):
 
             try:
                 with get_db_session() as db:
-                    self.game_service.create_game(db, game_name, price, total_tickets, order, game_number)
+                    self.game_service.create_game(db, game_name, price, total_tickets, game_number, order)
                 self.page.open(ft.SnackBar(ft.Text(f"Book '{game_number} -- {game_name}' created successfully!"), open=True))
                 self._close_dialog()
                 self.games_table_component.refresh_data()
@@ -151,16 +157,16 @@ class GameManagementView(ft.Container):
 
         game_name_field = ft.TextField(label="Game Name", autofocus=True, border_radius=8)
         price_field = NumberDecimalField(
-            label="Amount (USD)",
+            label="Amount (in $)",
             hint_text="e.g., 10",
             is_money_field=True,  # Indicate this is a money field
             currency_symbol="$",  # Specify the currency symbol
             is_integer_only=False,
         )
-        total_tickets_field = NumberDecimalField(label="Total Tickets", is_integer_only=True, border_radius=8)
+        total_tickets_field = NumberDecimalField(label="Total Tickets", is_integer_only=True, border_radius=8, hint_text="e.g., 150")
         ticket_order_options = [ft.dropdown.Option(order, order.capitalize()) for order in [REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER]]
         ticket_order_dropdown = ft.Dropdown(label="Ticket Order", options=ticket_order_options, value=REVERSE_TICKET_ORDER, border_radius=8)
-        game_number_field = NumberDecimalField(label="Game No.", is_integer_only=True, border_radius=8)
+        game_number_field = NumberDecimalField(label="Game No.", is_integer_only=True, border_radius=8, on_submit=_save_new_game, hint_text="e.g., 453")
         error_text_add = ft.Text(visible=False, color=ft.Colors.RED_700)
 
         self.page.dialog = ft.AlertDialog(
@@ -186,16 +192,17 @@ class GameManagementView(ft.Container):
             ),
             actions=[
                 ft.TextButton("Cancel", on_click=self._close_dialog, style=ft.ButtonStyle(color=ft.Colors.BLUE_GREY)),
-                ft.FilledButton("Create User", on_click=_save_new_game),
+                ft.FilledButton("Create Game", on_click=_save_new_game),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.open(self.page.dialog)
 
-    def _handle_table_data_change(self):
-        # Placeholder if this view needs to react to table changes directly
-        # For example, update a count of users displayed elsewhere on this page.
-        pass
+    def _handle_table_data_change(self, total_games: int, active_games: int, expired_games: int):
+        self.total_games = total_games
+        self.active_games = active_games
+        self.expired_games = expired_games
+        self.page.update()
 
     def _close_dialog(self, e=None):
         if self.page.dialog:

@@ -5,20 +5,16 @@ from app.core.models import License
 from app.core.exceptions import DatabaseError # Import custom exception
 
 
-def crud_create_license(db: Session) -> License:
+def crud_create_license(db: Session, license: bool = False) -> License:
     """
     Creates a new license record, defaulting to inactive.
     Raises DatabaseError if a license already exists or on other DB issues.
     """
     if db.query(License).first(): # Check if any license record exists
-        # This logic might need refinement if multiple licenses are ever allowed
-        # or if we want to allow re-creation if no active ones exist.
-        # For now, assuming only one license record should exist.
-        # raise DatabaseError("A license record already exists.") # Or just return existing if that's desired.
         return db.query(License).first() # Return existing if it's okay
 
     try:
-        new_license = License(is_active=False)
+        new_license = License(is_active=license)
         db.add(new_license)
         db.commit()
         db.refresh(new_license)

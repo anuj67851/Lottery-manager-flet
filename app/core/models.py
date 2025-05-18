@@ -90,7 +90,7 @@ class Game(Base):
     total_tickets = Column(Integer, nullable=False)
     is_expired = Column(Boolean, nullable=False, default=False)
     default_ticket_order = Column(String, nullable=False, default=REVERSE_TICKET_ORDER)
-    added_date = Column(DateTime, nullable=False, default=datetime.datetime.now())
+    created_date = Column(DateTime, nullable=False, default=datetime.datetime.now())
     expired_date = Column(DateTime, nullable=True)
 
     books = relationship("Book", back_populates="game")
@@ -126,12 +126,13 @@ class Book(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     activate_date = Column(DateTime, nullable=False, default=datetime.datetime.now())
     finish_date = Column(DateTime, nullable=True)
+    current_ticket_number = Column(Integer, nullable=False)
 
     game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
     game = relationship("Game", back_populates="books")
 
     sales_entries = relationship("SalesEntry", back_populates="book")
-    instance_number = Column(Integer, nullable=True)
+    book_number = Column(Integer, nullable=False)
 
     def __init__(self, **kwargs):
         """
@@ -141,6 +142,11 @@ class Book(Base):
         # Set the default ticket order based on the associated game
         if self.game and self.ticket_order is None:
             self.ticket_order = self.game.default_ticket_order
+
+        if self.ticket_order == REVERSE_TICKET_ORDER:
+            self.current_ticket_number = self.game.total_tickets
+        else:
+            self.current_ticket_number = 0
 
 
     def __repr__(self):
