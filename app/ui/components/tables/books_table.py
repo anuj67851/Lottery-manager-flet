@@ -85,9 +85,17 @@ class BooksTable(PaginatedDataTable[Book]):
                 on_click=lambda e, b=book: self._confirm_toggle_active_status(b, False)
             )
         else:
+            can_activate = True
+            if (book.current_ticket_number == -1 and book.ticket_order == REVERSE_TICKET_ORDER) or (book.current_ticket_number == book.game.total_tickets and book.ticket_order == FORWARD_TICKET_ORDER):
+                can_activate = False
+
             toggle_button = ft.IconButton(
-                ft.Icons.TOGGLE_OFF_OUTLINED, tooltip="Activate Book", icon_color=ft.Colors.GREEN_ACCENT_700, icon_size=20,
-                on_click=lambda e, b=book: self._confirm_toggle_active_status(b, True)
+                ft.Icons.TOGGLE_OFF_OUTLINED,
+                tooltip="Activate Book" if can_activate else "Cannot activate (book is finished)",
+                icon_color=ft.Colors.RED_700 if can_activate else ft.Colors.GREY_400,
+                icon_size=18,
+                disabled=not can_activate,
+                on_click=lambda e, b=book: self._confirm_toggle_active_status(b, True) if can_activate else None
             )
         actions.append(toggle_button)
 

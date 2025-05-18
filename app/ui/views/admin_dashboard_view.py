@@ -1,5 +1,6 @@
 import flet as ft
-from app.constants import LOGIN_ROUTE, GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE, BOOK_MANAGEMENT_ROUTE
+from app.constants import LOGIN_ROUTE, GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE, BOOK_MANAGEMENT_ROUTE, \
+    SALES_ENTRY_ROUTE
 from app.core.models import User
 from app.ui.components.widgets.function_button import create_nav_card_button
 from app.ui.components.common.appbar_factory import create_appbar # Import AppBar factory
@@ -76,7 +77,8 @@ class AdminDashboardView(ft.Container):
         buttons = [
             create_nav_card_button(
                 router=self.router, text="Sales Entry", icon_name=ft.Icons.POINT_OF_SALE_ROUNDED,
-                accent_color=ft.Colors.GREEN_700, navigate_to_route=LOGIN_ROUTE, tooltip="Add Daily Sales", disabled=True), # Example disabled
+                accent_color=ft.Colors.GREEN_700, navigate_to_route=SALES_ENTRY_ROUTE, tooltip="Add Daily Sales",
+                router_params=self.navigation_params_for_children),
             create_nav_card_button(
                 router=self.router, text="Book Sale", icon_name=ft.Icons.BOOK_ONLINE_ROUNDED,
                 accent_color=ft.Colors.BLUE_700, navigate_to_route=LOGIN_ROUTE, tooltip="Add Book Sale", disabled=True),
