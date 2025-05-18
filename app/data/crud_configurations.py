@@ -11,8 +11,8 @@ def crud_create_configuration(db: Session, name: str = "", value: str = "") -> C
     Creates a new configuration.
     Raises DatabaseError if a configuration already exists or on other DB issues.
     """
-    if db.query().filter(Configuration.name == name).first():
-        return db.query().filter(Configuration.name == name).first()
+    if db.query(Configuration).filter(Configuration.name == name).first():
+        return db.query(Configuration).filter(Configuration.name == name).first()
 
     try:
         new_config = Configuration(name=name, value=value)

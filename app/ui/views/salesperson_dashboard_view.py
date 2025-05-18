@@ -6,6 +6,7 @@ from app.core.exceptions import ValidationError, DatabaseError
 from app.services.configuration_service import ConfigurationService
 from app.services.user_service import UserService
 from app.data.database import get_db_session
+from app.ui.components.common.search_bar_component import SearchBarComponent
 from app.ui.components.tables.users_table import UsersTable # UsersTable (now PaginatedDataTable)
 from app.ui.components.common.appbar_factory import create_appbar # AppBar Factory
 from app.ui.components.common.dialog_factory import create_form_dialog # Form Dialog Factory
@@ -17,10 +18,16 @@ class SalesPersonDashboardView(ft.Container):
         self.page = page
         self.router = router
         self.current_user = current_user
-        self.license_service = ConfigurationService()
+        self.config_service = ConfigurationService()
         self.user_service = UserService()
 
         self.license_activated = license_status # Initial status from login
+
+        self.search_bar = SearchBarComponent(
+            on_search_changed=self._on_search_term_changed,
+            label="Search Users (Username, Role)",
+            expand=True # Search bar will expand within its allocated space in the row
+        )
 
         self.page.appbar = create_appbar(
             page=self.page,
@@ -53,6 +60,9 @@ class SalesPersonDashboardView(ft.Container):
     def _get_license_status_string(self) -> str:
         return "Active" if self.license_activated else "Inactive"
 
+    def _on_search_term_changed(self, search_term: str):
+        self.users_table_component.refresh_data_and_ui(search_term=search_term)
+
     def _update_license_ui_elements(self):
         status_string = self._get_license_status_string()
         self.license_status_label.value = f"License Status: {status_string}"
@@ -79,7 +89,7 @@ class SalesPersonDashboardView(ft.Container):
         new_status = not self.license_activated
         try:
             with get_db_session() as db:
-                self.license_service.set_license_status(db, new_status)
+                self.config_service.set_license_status(db, new_status)
             self.license_activated = new_status # Update state only on success
             self._update_license_ui_elements()
             self.page.open(
@@ -122,7 +132,6 @@ class SalesPersonDashboardView(ft.Container):
         def _save_new_user_handler(e):
             error_text_add.value = ""
             error_text_add.visible = False
-            # error_text_add.update() # Update will be handled by page.update()
 
             username = username_field.value.strip() if username_field.value else ""
             password = password_field.value if password_field.value else ""
@@ -130,16 +139,18 @@ class SalesPersonDashboardView(ft.Container):
             role = role_dropdown.value
 
             try:
-                if not username or not password or not role: # Basic check
+                if not username or not password or not role or not confirm_password: # Basic check
                     raise ValidationError("All fields (Username, Password, Role) are required.")
-                # More specific validation (e.g., password length) is in UserService
+
+                if password != confirm_password:
+                    raise ValidationError("Passwords do not match.")
 
                 with get_db_session() as db:
                     self.user_service.create_user(db, username, password, role)
 
                 self._close_active_dialog() # Close dialog first
                 self.page.open(ft.SnackBar(ft.Text(f"User '{username}' created successfully!"), open=True))
-                self.users_table_component.refresh_data_and_ui() # Refresh table
+                self.users_table_component.refresh_data_and_ui(self.search_bar.get_value())
             except (ValidationError, DatabaseError) as ex:
                 error_text_add.value = str(ex.message if hasattr(ex, 'message') else ex)
                 error_text_add.visible = True
@@ -201,6 +212,7 @@ class SalesPersonDashboardView(ft.Container):
                         ft.Row(
                             [
                                 ft.Text("User Account Management", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD, expand=True),
+                                self.search_bar,
                                 ft.FilledButton(
                                     "Add New User", icon=ft.Icons.PERSON_ADD_ALT_1_ROUNDED,
                                     on_click=self._handle_add_user_click,
@@ -236,7 +248,7 @@ class SalesPersonDashboardView(ft.Container):
 
         return ft.Container( # Outer container to control width and alignment
             content=centered_content_column,
-            width=self.page.width * 0.7 if self.page.width and self.page.width > 800 else None, # Max width for content area
+            width=800, # Max width for content area
             # max_width=800, # Example fixed max width
             alignment=ft.alignment.top_center, # Center the content column on the page
             expand=True,

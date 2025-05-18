@@ -2,7 +2,7 @@ from typing import List, Callable, Optional, Type, Dict, Any
 import flet as ft
 import datetime
 
-from app.constants import ADMIN_ROLE, EMPLOYEE_ROLE, SALESPERSON_ROLE, MANAGED_USER_ROLES
+from app.constants import ADMIN_ROLE, EMPLOYEE_ROLE, SALESPERSON_ROLE, MANAGED_USER_ROLES, ALL_USER_ROLES
 from app.core.exceptions import WidgetError, ValidationError, DatabaseError, UserNotFoundError
 from app.core.models import User
 from app.services.user_service import UserService
@@ -41,12 +41,11 @@ class UsersTable(PaginatedDataTable[User]):
             column_definitions=column_definitions,
             action_cell_builder=self._build_action_cell,
             rows_per_page=10, # Users table might show more, adjust as needed
-            initial_sort_key="username",
+            initial_sort_key="id",
             initial_sort_ascending=True,
-            show_pagination=False, # UsersTable did not have pagination, keeping that look
-            default_search_enabled=False, # UsersTable did not have search, keeping that look
+            show_pagination=True, # UsersTable did not have pagination, keeping that look
+            default_search_enabled=True, # UsersTable did not have search, keeping that look
         )
-        # self.refresh_data_and_ui() # Initial load triggered by view
 
     def _fetch_users_data(self, db_session) -> List[User]:
         """Implements data fetching for users based on initial roles."""

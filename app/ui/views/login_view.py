@@ -12,7 +12,7 @@ from app.constants import (
 )
 from app.core.models import User
 from app.ui.components.common.appbar_factory import create_appbar # Import AppBar factory
-from app.config import APP_TITLE # Use APP_TITLE from config
+from app.config import APP_TITLE, VERSION  # Use APP_TITLE from config
 
 class LoginView(ft.Container):
     def __init__(self, page: ft.Page, router, **params):
@@ -22,8 +22,9 @@ class LoginView(ft.Container):
         # Services are typically not instantiated per view, but rather passed or accessed globally/via DI.
         # For simplicity here, keeping them as instance variables if needed by methods in this view.
         self.user_service = UserService()
-        self.license_service = ConfigurationService()
-        self.auth_service = AuthService() # AuthService will be used by LoginForm
+        self.config_service = ConfigurationService()
+
+        self.auth_service = AuthService()
 
         self.page.appbar = create_appbar(
             page=self.page,
@@ -64,7 +65,7 @@ class LoginView(ft.Container):
                 ),
                 ft.Container(
                     content=ft.Text(
-                        "© 2025 Anuj Patel · All Rights Reserved · Built using Python and Flet",
+                        f"© 2025 Anuj Patel · All Rights Reserved · Built using Python and Flet · Version: {VERSION}",
                         size=12,
                         color=ft.Colors.GREY_500, # Softer color
                         text_align=ft.TextAlign.CENTER,
@@ -88,7 +89,7 @@ class LoginView(ft.Container):
         license_activated = False # Default
         try:
             with get_db_session() as db:
-                license_activated = self.license_service.get_license_status(db)
+                license_activated = self.config_service.get_license_status(db)
         except Exception as e:
             print(f"Error fetching license status: {e}")
             # Show error to user, prevent login, or proceed with license_activated = False
