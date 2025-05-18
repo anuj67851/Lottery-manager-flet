@@ -1,7 +1,7 @@
 import flet as ft
 from typing import List, Optional, Callable
 
-from app.constants import ADMIN_DASHBOARD_ROUTE
+from app.constants import ADMIN_DASHBOARD_ROUTE, GAME_LENGTH, MIN_REQUIRED_SCAN_LENGTH, BOOK_LENGTH, QR_TOTAL_LENGTH
 from app.core.models import User, Game as GameModel
 from app.services.book_service import BookService
 from app.services.game_service import GameService # To validate game numbers and get details
@@ -124,8 +124,6 @@ class BookManagementView(ft.Container):
         total_added_label = ft.Text("Total Books in List: 0", weight=ft.FontWeight.BOLD, color=ft.Colors.PRIMARY)
         dialog_error_text = ft.Text("", color=ft.Colors.RED_ACCENT_700, visible=False, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
 
-        SCANNER_INPUT_EXPECTED_LENGTH = 29
-
         def _update_dialog_ui_elements():
             """Helper to update specific parts of the dialog that change often."""
             if self.page and self.page.dialog:
@@ -137,7 +135,7 @@ class BookManagementView(ft.Container):
         def _handle_scanner_input_change(ev: ft.ControlEvent):
             scanner_field = ev.control
             current_value = scanner_field.value.strip() if scanner_field.value else ""
-            if len(current_value) >= SCANNER_INPUT_EXPECTED_LENGTH:
+            if len(current_value) >= QR_TOTAL_LENGTH:
                 self._process_scanner_input(
                     scanner_field, temp_books_to_add, dialog_books_table,
                     dialog_error_text, total_added_label
@@ -145,7 +143,7 @@ class BookManagementView(ft.Container):
 
         scanner_input_field = ft.TextField(
             label="Scan Full Book Code",
-            hint_text=f"Scanned input (auto-submits at {SCANNER_INPUT_EXPECTED_LENGTH} chars)",
+            hint_text=f"Scanned input (auto-submits at {QR_TOTAL_LENGTH} chars)",
             on_change=_handle_scanner_input_change,
             on_submit=lambda ev: self._process_scanner_input( # Fallback if Enter is pressed early
                 ev.control, temp_books_to_add, dialog_books_table,
@@ -161,8 +159,8 @@ class BookManagementView(ft.Container):
                 manual_game_no_field
             )
 
-        manual_game_no_field = NumberDecimalField(label="Game No.", hint_text="3 digits", width=120, max_length=3, is_integer_only=True, border_radius=8, height=50)
-        manual_book_no_field = ft.TextField(label="Book No.", hint_text="7 digits", width=210, max_length=7, border_radius=8, input_filter=ft.InputFilter(r"[0-9]"), height=50, on_submit=_add_manual_entry_handler)
+        manual_game_no_field = NumberDecimalField(label="Game No.", hint_text="3 digits", width=120, max_length=GAME_LENGTH, is_integer_only=True, border_radius=8, height=50)
+        manual_book_no_field = ft.TextField(label="Book No.", hint_text="7 digits", width=210, max_length=BOOK_LENGTH, border_radius=8, input_filter=ft.InputFilter(r"[0-9]"), height=50, on_submit=_add_manual_entry_handler)
 
         dialog_books_table = ft.DataTable(
             columns=[
@@ -328,17 +326,16 @@ class BookManagementView(ft.Container):
         if input_field.page: input_field.update() # Update the visual of the input field
         # Focus will be handled by _add_to_temp_books_list or fallback here
 
-        MIN_REQUIRED_SCAN_LENGTH = 10
         if len(scan_value) < MIN_REQUIRED_SCAN_LENGTH:
-            error_widget.value = f"Scanned input too short (min {MIN_REQUIRED_SCAN_LENGTH} chars for Game+Book)."
+            error_widget.value = f"Scanned input too short (min {MIN_REQUIRED_SCAN_LENGTH} chars for Book)."
             error_widget.visible = True
             if error_widget.page: error_widget.update()
             if input_field.page: input_field.focus()
             if self.page and self.page.dialog: self.page.update()
             return
 
-        game_no_str = scan_value[:3]
-        book_no_str = scan_value[3:10]
+        game_no_str = scan_value[:GAME_LENGTH]
+        book_no_str = scan_value[GAME_LENGTH:(GAME_LENGTH + BOOK_LENGTH)]
         self._add_to_temp_books_list(game_no_str, book_no_str, temp_books_list, table_widget, error_widget, count_label, error_focus_target=input_field, success_focus_target=input_field)
 
     def _process_manual_input(self, game_field: NumberDecimalField, book_field: ft.TextField, temp_books_list: List[TempBookEntry], table_widget: ft.DataTable, error_widget: ft.Text, count_label: ft.Text, manual_field_ref: ft.TextField):
@@ -347,7 +344,7 @@ class BookManagementView(ft.Container):
 
         # Determine which field likely caused error for focus
         error_focus = game_field # Default to game field
-        if game_no_str and len(game_no_str) == 3 and game_no_str.isdigit():
+        if game_no_str and len(game_no_str) == GAME_LENGTH and game_no_str.isdigit():
             error_focus = book_field # If game number seems okay, error is likely with book number
 
         self._add_to_temp_books_list(game_no_str, book_no_str, temp_books_list, table_widget, error_widget, count_label, error_focus_target=error_focus, success_focus_target=manual_field_ref)
