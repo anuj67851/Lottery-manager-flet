@@ -31,6 +31,9 @@ class TempBookEntry:
                                       on_click=lambda e: on_remove_callback(self), tooltip="Remove from list"))
         ])
 
+    def __repr__(self):
+        return f"BookEntry(game_number_str={self.game_number_str}, book_number_str={self.book_number_str}, game_name={self.game_name}, game_price_formatted={self.game_price_formatted}, game_id={self.game_id})"
+
 class BookManagementView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User, license_status: bool,
                  previous_view_route: str = ADMIN_DASHBOARD_ROUTE,
@@ -102,7 +105,7 @@ class BookManagementView(ft.Container):
                 ft.Divider(height=15, color=ft.Colors.TRANSPARENT), self.books_table_component,
             ], spacing=15, expand=True
         )
-        TARGET_CARD_MAX_WIDTH = 1000; MIN_CARD_WIDTH = 360; SIDE_PADDING = 20
+        TARGET_CARD_MAX_WIDTH = 1100; MIN_CARD_WIDTH = 360; SIDE_PADDING = 20
         page_width_available = self.page.width if self.page.width and self.page.width > (2 * SIDE_PADDING) else (MIN_CARD_WIDTH + 2 * SIDE_PADDING)
         card_effective_width = min(TARGET_CARD_MAX_WIDTH, page_width_available - (2 * SIDE_PADDING))
         card_effective_width = max(MIN_CARD_WIDTH, card_effective_width)
@@ -155,11 +158,11 @@ class BookManagementView(ft.Container):
             self._process_manual_input(
                 manual_game_no_field, manual_book_no_field, temp_books_to_add,
                 dialog_books_table, dialog_error_text, total_added_label,
-                scanner_input_field # Pass scanner as default focus if manual is cleared
+                manual_game_no_field
             )
 
         manual_game_no_field = NumberDecimalField(label="Game No.", hint_text="3 digits", width=120, max_length=3, is_integer_only=True, border_radius=8, height=50)
-        manual_book_no_field = ft.TextField(label="Book No.", hint_text="7 digits", width=210, max_length=7, border_radius=8, input_filter=ft.InputFilter(r"[0-9]{7}"), height=50, on_submit=_add_manual_entry_handler)
+        manual_book_no_field = ft.TextField(label="Book No.", hint_text="7 digits", width=210, max_length=7, border_radius=8, input_filter=ft.InputFilter(r"[0-9]"), height=50, on_submit=_add_manual_entry_handler)
 
         dialog_books_table = ft.DataTable(
             columns=[
@@ -302,7 +305,7 @@ class BookManagementView(ft.Container):
 
             game_price_display = f"${game_model.price}"
             temp_entry = TempBookEntry(game_number_str, book_number_str, game_model.name, game_price_display, game_model.id)
-            temp_books_list.append(temp_entry)
+            temp_books_list.insert(0, temp_entry)
             self._update_dialog_table(temp_books_list, table_widget, error_widget, count_label)
             if success_focus_target and success_focus_target.page: success_focus_target.focus()
 
@@ -338,7 +341,7 @@ class BookManagementView(ft.Container):
         book_no_str = scan_value[3:10]
         self._add_to_temp_books_list(game_no_str, book_no_str, temp_books_list, table_widget, error_widget, count_label, error_focus_target=input_field, success_focus_target=input_field)
 
-    def _process_manual_input(self, game_field: NumberDecimalField, book_field: ft.TextField, temp_books_list: List[TempBookEntry], table_widget: ft.DataTable, error_widget: ft.Text, count_label: ft.Text, scanner_field_ref: ft.TextField):
+    def _process_manual_input(self, game_field: NumberDecimalField, book_field: ft.TextField, temp_books_list: List[TempBookEntry], table_widget: ft.DataTable, error_widget: ft.Text, count_label: ft.Text, manual_field_ref: ft.TextField):
         game_no_str = game_field.get_value_as_str()
         book_no_str = book_field.value.strip() if book_field.value else ""
 
@@ -347,10 +350,10 @@ class BookManagementView(ft.Container):
         if game_no_str and len(game_no_str) == 3 and game_no_str.isdigit():
             error_focus = book_field # If game number seems okay, error is likely with book number
 
-        self._add_to_temp_books_list(game_no_str, book_no_str, temp_books_list, table_widget, error_widget, count_label, error_focus_target=error_focus, success_focus_target=scanner_field_ref)
+        self._add_to_temp_books_list(game_no_str, book_no_str, temp_books_list, table_widget, error_widget, count_label, error_focus_target=error_focus, success_focus_target=manual_field_ref)
 
         if not error_widget.visible or not error_widget.value: # If successfully added
             game_field.clear()
             book_field.value = ""
             if book_field.page: book_field.update()
-            if scanner_field_ref.page: scanner_field_ref.focus() # Focus scanner after successful manual add
+            if manual_field_ref.page: manual_field_ref.focus() # Focus scanner after successful manual add

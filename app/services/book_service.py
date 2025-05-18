@@ -127,3 +127,22 @@ class BookService:
 
     def has_book_any_sales(self, db: Session, book_id: int) -> bool:
         return crud_books.has_book_any_sales(db, book_id)
+
+
+    def delete_book(self, db: Session, book_id: int) -> bool:
+        """
+        Deletes a book if it's not active and has no sales entries.
+        """
+        book_to_delete = self.get_book_by_id(db, book_id) # Raises BookNotFoundError if not found
+
+        if book_to_delete.is_active:
+            raise ValidationError("Cannot delete an active book. Deactivate it first.")
+
+        if self.has_book_any_sales(db, book_id):
+            raise ValidationError("Cannot delete a book with sales entries.")
+
+        return crud_books.delete_book_by_id(db, book_id)
+
+    def get_ids_of_books_with_sales(self, db: Session) -> set[int]:
+        """Retrieves a set of all book IDs that have associated sales entries."""
+        return crud_books.get_book_ids_with_sales(db)

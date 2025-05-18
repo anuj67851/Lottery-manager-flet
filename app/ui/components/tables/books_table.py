@@ -2,6 +2,7 @@ from typing import List, Callable, Optional, Dict, Any
 import flet as ft
 import datetime
 
+from app.core import ValidationError, DatabaseError
 from app.core.models import Book
 from app.services.book_service import BookService, BookNotFoundError
 from app.data.database import get_db_session
@@ -17,6 +18,7 @@ class BooksTable(PaginatedDataTable[Book]):
         self.book_service = book_service
         self._on_data_changed_stats = on_data_changed_stats
         self.current_action_book: Optional[Book] = None
+        self._books_with_sales_ids: set[int] = set()
 
         column_definitions: List[Dict[str, Any]] = [
             {"key": "id", "label": "ID", "sortable": True, "numeric": False, "searchable": False},
@@ -33,6 +35,8 @@ class BooksTable(PaginatedDataTable[Book]):
             {"key": "is_active", "label": "Status", "sortable": True, "numeric": False,
              "display_formatter": self._format_status_cell},
             {"key": "activate_date", "label": "Activated", "sortable": True, "numeric": False,
+             "display_formatter": lambda val: ft.Text(val.strftime("%Y-%m-%d") if val else "-")},
+            {"key": "finish_date", "label": "Finished", "sortable": True, "numeric": False,
              "display_formatter": lambda val: ft.Text(val.strftime("%Y-%m-%d") if val else "-")},
         ]
 
@@ -86,6 +90,24 @@ class BooksTable(PaginatedDataTable[Book]):
                 on_click=lambda e, b=book: self._confirm_toggle_active_status(b, True)
             )
         actions.append(toggle_button)
+
+        # --- Delete Button Logic ---
+        can_delete = False
+        if not book.is_active:
+            # Check against the pre-fetched set of book IDs with sales
+            if book.id not in self._books_with_sales_ids:
+                can_delete = True
+
+        delete_button = ft.IconButton(
+            ft.Icons.DELETE_FOREVER_ROUNDED,
+            tooltip="Delete Book" if can_delete else "Cannot delete (book is active or has sales entries)",
+            icon_color=ft.Colors.RED_700 if can_delete else ft.Colors.GREY_400,
+            icon_size=18,
+            disabled=not can_delete,
+            on_click=lambda e, b=book: self._confirm_delete_book_dialog(b) if can_delete else None
+        )
+        actions.append(delete_button)
+
         return ft.DataCell(ft.Row(actions, spacing=-5, alignment=ft.MainAxisAlignment.END))
 
     def _confirm_toggle_active_status(self, book: Book, to_active: bool):
@@ -196,3 +218,78 @@ class BooksTable(PaginatedDataTable[Book]):
         )
         self.page.dialog = edit_dialog
         self.page.open(self.page.dialog)
+
+    def refresh_data_and_ui(self, search_term: Optional[str] = None):
+        if search_term is None:
+            search_term = self._last_search_term
+        else:
+            self._last_search_term = search_term
+
+        try:
+            with get_db_session() as db:
+                # Fetch the main book data (as done by the base class)
+                self._all_unfiltered_data = self.fetch_all_data_func(db) # This calls self._fetch_books_data
+
+                # Fetch the set of book IDs that have sales
+                self._books_with_sales_ids = self.book_service.get_ids_of_books_with_sales(db)
+
+            if self.on_data_stats_changed:
+                # The base class handles calling this from its _filter_and_sort_displayed_data
+                # If you have specific stats for BooksTable, that logic is usually in its own
+                # _filter_and_sort_displayed_data override.
+                pass
+
+            self._current_page_number = 1
+            # This will call the base class's _filter_and_sort_displayed_data, which then calls
+            # _update_datatable_rows, which in turn calls our modified _build_action_cell
+            self._filter_and_sort_displayed_data(search_term)
+
+        except Exception as e:
+            print(f"Error refreshing data for BooksTable: {e}")
+            if self.page:
+                self.page.open(ft.SnackBar(ft.Text(f"Error loading book data: {type(e).__name__}"), open=True, bgcolor=ft.Colors.ERROR))
+
+    def _confirm_delete_book_dialog(self, book: Book):
+        self.current_action_book = book
+
+        # Perform checks again before showing the dialog as a safeguard
+        if book.is_active:
+            self.show_error_snackbar("Action aborted: Book is currently active.")
+            return
+        try:
+            with get_db_session() as db:
+                if self.book_service.has_book_any_sales(db, book.id):
+                    self.show_error_snackbar("Action aborted: Book has sales entries.")
+                    return
+        except Exception as e_check_dialog:
+            self.show_error_snackbar(f"Error checking book status: {e_check_dialog}")
+            return
+
+        dialog_content = ft.Text(f"Are you sure you want to permanently delete Book No. {book.book_number} for Game No. {book.game.game_number if book.game else 'N/A'}? This action cannot be undone.")
+        confirm_dialog = create_confirmation_dialog(
+            title_text="Confirm Delete Book", title_color=ft.Colors.RED_900, content_control=dialog_content,
+            on_confirm=self._handle_delete_book_confirmed,
+            on_cancel=lambda e: self.close_dialog_and_refresh(self.page.dialog), # type: ignore
+            confirm_button_text="Delete Permanently",
+            confirm_button_style=ft.ButtonStyle(bgcolor=ft.Colors.RED_900, color=ft.Colors.WHITE)
+        )
+        self.page.dialog = confirm_dialog
+        self.page.open(self.page.dialog)
+    def _handle_delete_book_confirmed(self, e=None):
+        if not self.current_action_book: return
+        book_to_delete = self.current_action_book
+        current_dialog = self.page.dialog
+
+        try:
+            with get_db_session() as db:
+                self.book_service.delete_book(db, book_to_delete.id)
+            self.close_dialog_and_refresh(current_dialog, f"Book {book_to_delete.game.game_number}-{book_to_delete.book_number} deleted successfully.")
+        except (BookNotFoundError, ValidationError, DatabaseError) as ex:
+            # Error message might already be in ex.message
+            self.show_error_snackbar(str(ex.message if hasattr(ex, 'message') and ex.message else ex))
+            self.close_dialog_and_refresh(current_dialog)
+        except Exception as ex_general:
+            self.show_error_snackbar(f"Unexpected error deleting book: {ex_general}")
+            self.close_dialog_and_refresh(current_dialog)
+        finally:
+            self.current_action_book = None

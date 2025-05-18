@@ -1,11 +1,13 @@
 from typing import List, Optional, Dict, Any
+
+from sqlalchemy import select, distinct
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 
 from app.core.models import Book, SalesEntry, Game
-from app.core.exceptions import DatabaseError, ValidationError # Assuming you might need these
+from app.core.exceptions import DatabaseError, ValidationError, BookNotFoundError  # Assuming you might need these
 from app.constants import REVERSE_TICKET_ORDER
 
 def get_book_by_id(db: Session, book_id: int) -> Optional[Book]:
@@ -80,3 +82,22 @@ def update_book_details(db: Session, book: Book, updates: Dict[str, Any]) -> Boo
 def has_book_any_sales(db: Session, book_id: int) -> bool:
     """Checks if a specific book has any sales entries."""
     return db.query(SalesEntry.id).filter(SalesEntry.book_id == book_id).first() is not None
+
+def delete_book_by_id(db: Session, book_id: int) -> bool:
+    """Deletes a book by its ID."""
+    book = get_book_by_id(db, book_id)
+    if not book:
+        raise BookNotFoundError(f"Book with ID {book_id} not found for deletion.")
+    try:
+        db.delete(book)
+        # db.commit() # Commit handled by service layer or context manager
+        return True
+    except Exception as e:
+        # db.rollback() # Handled by context manager
+        raise DatabaseError(f"Could not delete book with ID {book_id}: {e}")
+
+def get_book_ids_with_sales(db: Session) -> set[int]:
+    """Returns a set of book IDs that have at least one sales entry."""
+    stmt = select(distinct(SalesEntry.book_id))
+    result = db.execute(stmt).scalars().all()
+    return set(result)
