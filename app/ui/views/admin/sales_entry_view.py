@@ -12,7 +12,6 @@ from app.ui.components.common.appbar_factory import create_appbar
 from app.ui.components.common.dialog_factory import create_confirmation_dialog
 from app.ui.components.tables.sales_entry_items_table import SalesEntryItemsTable
 from app.ui.components.tables.sales_entry_item_data import SalesEntryItemData
-from app.config import APP_TITLE
 
 class SalesEntryView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User, license_status: bool,
@@ -51,7 +50,7 @@ class SalesEntryView(ft.Container):
         self.scan_error_text_widget = ft.Text("", color=ft.Colors.RED_ACCENT_700, visible=False, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
 
         self.page.appbar = create_appbar(
-            page=self.page, router=self.router, title_text=f"{APP_TITLE} > Sales Entry",
+            page=self.page, router=self.router, title_text=f"{self.current_user.role.capitalize()} > Sales Entry",
             current_user=self.current_user, license_status=self.license_status,
             leading_widget=ft.IconButton(
                 icon=ft.Icons.ARROW_BACK_IOS_NEW_ROUNDED,

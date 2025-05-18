@@ -207,7 +207,7 @@ class SalesEntryItemData:
 
         return ft.DataRow(
             cells=[
-                ft.DataCell(ft.Text(f"{self.game_name} (G:{self.book_model.game.game_number}) - Bk.{self.book_number}", weight=ft.FontWeight.W_500, size=13)),
+                ft.DataCell(ft.Text(f"{self.game_name} | Game No: {self.book_model.game.game_number} | Book No: {self.book_number}", weight=ft.FontWeight.W_500, size=13)),
                 ft.DataCell(ft.Text(price_display, text_align=ft.TextAlign.RIGHT, size=13)),
                 ft.DataCell(ft.Text(str(self.db_current_ticket_no), text_align=ft.TextAlign.RIGHT, size=13)),
                 ft.DataCell(ft.Container(content=self.ui_new_ticket_no_ref, width=90, alignment=ft.alignment.center_right)),

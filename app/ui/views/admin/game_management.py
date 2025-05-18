@@ -47,7 +47,7 @@ class GameManagementView(ft.Container):
         self.page.appbar = create_appbar(
             page=self.page,
             router=self.router,
-            title_text="Admin > Game Management",
+            title_text=f"{self.current_user.role.capitalize()} > Game Management",
             current_user=self.current_user,
             license_status=self.license_status,
             leading_widget=ft.IconButton(
