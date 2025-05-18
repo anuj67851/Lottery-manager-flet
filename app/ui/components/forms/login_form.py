@@ -103,5 +103,4 @@ class LoginForm(ft.Container):
             self.error_text.value = "An unexpected error occurred. Please try again."
             self.error_text.visible = True
 
-        self.update() # Update to show new error or clear form elements if needed
         if self.page: self.page.update() # Update the page to reflect changes in the form

@@ -3,35 +3,23 @@ from math import ceil
 from typing import List, Callable, Optional, Any, Dict, TypeVar, Generic
 import flet as ft
 import datetime
+import inspect
 
-from app.data.database import get_db_session # For default db session
+from app.data.database import get_db_session
 
-# Define a generic type for the data items
 T = TypeVar('T')
 
 class PaginatedDataTable(ft.Container, Generic[T]):
     def __init__(
             self,
             page: ft.Page,
-            # Function to fetch all data. Takes a db session.
             fetch_all_data_func: Callable[[Any], List[T]],
-            # List of column definitions. Each dict should have:
-            # 'key': attribute name in the data item T
-            # 'label': string for the column header
-            # 'sortable': bool, if the column can be sorted
-            # 'numeric': bool, for ft.DataColumn numeric property
-            # 'display_formatter': Optional Callable[[Any, T], ft.Control] or Callable[[Any], ft.Control]
-            #                      to format the cell content. Receives raw value and optionally the full item.
-            #                      Defaults to ft.Text(str(value)).
-            # 'searchable': bool, if this column's value should be included in default search
             column_definitions: List[Dict[str, Any]],
-            # Function to build the actions ft.DataCell for a row. Receives item T.
-            action_cell_builder: Optional[Callable[[T, 'PaginatedDataTable[T]'], ft.DataCell]], # Pass self for page access
+            action_cell_builder: Optional[Callable[[T, 'PaginatedDataTable[T]'], ft.DataCell]],
             rows_per_page: int = 10,
-            initial_sort_key: Optional[str] = None, # Key from column_definitions
+            initial_sort_key: Optional[str] = None,
             initial_sort_ascending: bool = True,
-            on_data_stats_changed: Optional[Callable[[int, int, int], None]] = None, # total, active, expired (example)
-            # Or a more generic stats callback
+            on_data_stats_changed: Optional[Callable[[int, int, int], None]] = None,
             no_data_message: str = "No data available.",
             card_elevation: float = 2,
             card_padding: int = 15,
@@ -53,7 +41,7 @@ class PaginatedDataTable(ft.Container, Generic[T]):
         self.show_pagination = show_pagination
 
         self._all_unfiltered_data: List[T] = []
-        self._displayed_data: List[T] = [] # Filtered and sorted data
+        self._displayed_data: List[T] = []
 
         self._current_sort_column_key: Optional[str] = initial_sort_key
         self._current_sort_ascending: bool = initial_sort_ascending
@@ -61,18 +49,17 @@ class PaginatedDataTable(ft.Container, Generic[T]):
         self._last_search_term: str = ""
 
         self.datatable = ft.DataTable(
-            columns=[], # Will be populated by _initialize_columns
+            columns=[],
             rows=[],
             column_spacing=20,
             expand=True,
             vertical_lines=ft.BorderSide(width=0.5, color=ft.Colors.with_opacity(0.15, ft.Colors.ON_SURFACE)),
             horizontal_lines=ft.BorderSide(width=0.5, color=ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE)),
             sort_ascending=self._current_sort_ascending,
-            # sort_column_index will be set dynamically if a sort_key is found
             heading_row_height=heading_row_height,
             data_row_max_height=data_row_max_height,
         )
-        self._initialize_columns() # Set sort_column_index here
+        self._initialize_columns()
 
         self.prev_button = ft.IconButton(
             ft.Icons.KEYBOARD_ARROW_LEFT_ROUNDED, on_click=self._prev_page, tooltip="Previous Page", disabled=True
@@ -109,7 +96,6 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             ),
             elevation=card_elevation,
         )
-        # self.refresh_data_and_ui() # Initial data load called by consumer typically
 
     def _get_column_def_by_key(self, key: str) -> Optional[Dict[str, Any]]:
         for col_def in self.column_definitions:
@@ -142,13 +128,11 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             idx = self._get_column_index_by_key(self._current_sort_column_key)
             if idx is not None:
                 self.datatable.sort_column_index = idx
-            else: # sort key not found in columns, reset
+            else:
                 self._current_sort_column_key = None
 
 
     def _handle_column_sort(self, e: ft.ControlEvent):
-        # Determine which column was clicked based on the label or a more robust ID
-        # For simplicity, we find by label, assuming labels are unique for sortable columns
         clicked_label_widget = e.control.label
         if not isinstance(clicked_label_widget, ft.Text): return
         clicked_label = clicked_label_widget.value
@@ -172,7 +156,7 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             self.datatable.sort_column_index = clicked_col_idx
             self.datatable.sort_ascending = self._current_sort_ascending
             self._current_page_number = 1
-            self._filter_and_sort_displayed_data(self._last_search_term) # Re-sort and update UI
+            self._filter_and_sort_displayed_data(self._last_search_term)
         else:
             print(f"Warning: Sort key not found for column label '{clicked_label}'")
 
@@ -180,7 +164,7 @@ class PaginatedDataTable(ft.Container, Generic[T]):
     def _get_sort_value_for_item(self, item: T, sort_key: str) -> Any:
         """
         Extracts a value from an item for sorting.
-        Can be overridden by subclasses for complex sorting logic.
+        Handles None values by returning type-appropriate min/max values.
         """
         col_def = self._get_column_def_by_key(sort_key)
         raw_value = getattr(item, sort_key, None)
@@ -189,13 +173,27 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             return col_def['custom_sort_value_getter'](item)
 
         if isinstance(raw_value, str):
-            return raw_value.lower()
-        if raw_value is None: # Consistent handling for None values
-            # Adjust for specific types like datetime if needed
-            if isinstance(getattr(item, sort_key, None), datetime.datetime): # Check original type
+            return raw_value.lower() # Case-insensitive sort for strings
+
+        if raw_value is None:
+            # Get the type of the attribute from a non-None item if possible,
+            # or rely on a hint from column_definitions if provided.
+            # For simplicity here, we'll check if the sort_key corresponds to known date fields.
+            # A more robust solution might involve passing a 'data_type' in column_definitions.
+
+            # Specifically handle None for datetime fields
+            if sort_key in ["created_date", "expired_date", "activate_date", "finish_date", "date"]: # Add any other date keys
                 return datetime.datetime.min if self._current_sort_ascending else datetime.datetime.max
-            return float('-inf') if self._current_sort_ascending else float('inf')
+            else: # Default for other types
+                return float('-inf') if self._current_sort_ascending else float('inf')
+
+        # If raw_value is already a datetime, it's fine
+        if isinstance(raw_value, datetime.datetime):
+            return raw_value
+
+        # For other types (numbers, booleans), return as is
         return raw_value
+
 
 
     def _filter_and_sort_displayed_data(self, search_term: str = ""):
@@ -205,21 +203,36 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             self._displayed_data = list(self._all_unfiltered_data)
         else:
             self._displayed_data = []
-            searchable_keys = [cd['key'] for cd in self.column_definitions if cd.get('searchable', True)] # Default to searchable
+            searchable_keys = [cd['key'] for cd in self.column_definitions if cd.get('searchable', True)]
             for item in self._all_unfiltered_data:
                 found = False
                 for key in searchable_keys:
                     value = getattr(item, key, None)
-                    display_formatter = self._get_column_def_by_key(key).get('display_formatter') # type: ignore
+                    col_def_for_key = self._get_column_def_by_key(key)
+                    display_formatter = col_def_for_key.get('display_formatter') if col_def_for_key else None
 
                     str_value = ""
                     if display_formatter:
-                        # Attempt to get a string representation if formatter returns a Control
-                        # This is a simplification; complex formatters might need specific string extractors.
-                        formatted_control = display_formatter(value, item) if callable(display_formatter) and display_formatter.__code__.co_argcount == 2 else display_formatter(value) # type: ignore
+                        # Check number of parameters the formatter expects from the caller
+                        num_params = 0
+                        if callable(display_formatter):
+                            try:
+                                num_params = len(inspect.signature(display_formatter).parameters)
+                            except ValueError: # Some callables might not have a clear signature (e.g. built-in)
+                                pass
+
+                        formatted_control: Optional[ft.Control] = None
+                        if num_params == 2: # Assumes (value, item)
+                            formatted_control = display_formatter(value, item)
+                        elif num_params == 1: # Assumes (value)
+                            formatted_control = display_formatter(value)
+                        else: # Fallback or if not a standard formatter
+                            formatted_control = ft.Text(str(value) if value is not None else "")
+
+
                         if isinstance(formatted_control, ft.Text):
                             str_value = str(formatted_control.value).lower()
-                        elif value is not None:
+                        elif value is not None: # Fallback if formatter returns non-Text or complex Control
                             str_value = str(value).lower()
                     elif value is not None:
                         str_value = str(value).lower()
@@ -230,11 +243,10 @@ class PaginatedDataTable(ft.Container, Generic[T]):
                 if found:
                     self._displayed_data.append(item)
 
-        # Sorting
         if self._current_sort_column_key:
             sort_key_attr = self._current_sort_column_key
             self._displayed_data.sort(
-                key=lambda item: self._get_sort_value_for_item(item, sort_key_attr),
+                key=lambda item_to_sort: self._get_sort_value_for_item(item_to_sort, sort_key_attr),
                 reverse=not self._current_sort_ascending
             )
         self._update_datatable_rows()
@@ -248,30 +260,53 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             formatter = col_def.get('display_formatter')
 
             cell_content: ft.Control
-            if formatter:
-                # Check if formatter expects the full item or just the value
+            if formatter and callable(formatter): # Ensure formatter is callable
                 try:
-                    if callable(formatter) and formatter.__code__.co_argcount == 2: #expects value, item
+                    # Use inspect.signature to determine how to call the formatter
+                    sig = inspect.signature(formatter)
+                    num_params = len(sig.parameters)
+
+                    if num_params == 2:  # Expects (value, item)
                         cell_content = formatter(raw_value, item)
-                    else: # expects only value
+                    elif num_params == 1:  # Expects (value)
                         cell_content = formatter(raw_value)
+                    else:
+                        # This case can happen if a method is passed without 'self' being bound,
+                        # or if the signature is unusual.
+                        # For instance methods like self._format_expired_date_cell,
+                        # len(inspect.signature(self._format_expired_date_cell).parameters) is 2.
+                        # So this 'else' should ideally not be hit for well-defined formatters.
+                        # print(f"Warning: Formatter for key {key} has an unexpected signature: {sig}. Defaulting display.")
+                        cell_content = ft.Text(str(raw_value) if raw_value is not None else "", size=12.5)
+                except ValueError: # E.g. for built-in functions that inspect.signature might not handle as expected
+                    # print(f"Warning: Could not inspect signature for formatter of key {key}. Attempting call with value only.")
+                    try:
+                        cell_content = formatter(raw_value) # Try calling with just value
+                    except TypeError:
+                        # print(f"Error: Formatter for key {key} failed. Defaulting display.")
+                        cell_content = ft.Text(str(raw_value) if raw_value is not None else "", size=12.5)
+
                 except Exception as e:
-                    # print(f"Error applying formatter for key {key}: {e}")
+                    # print(f"Error applying formatter for key {key}: {e}. Defaulting display.")
                     cell_content = ft.Text(str(raw_value) if raw_value is not None else "", size=12.5)
             else:
                 cell_content = ft.Text(str(raw_value) if raw_value is not None else "", size=12.5)
             cells.append(ft.DataCell(cell_content))
 
         if self.action_cell_builder:
-            action_cell = self.action_cell_builder(item, self) # Pass self (the table instance)
+            action_cell = self.action_cell_builder(item, self)
             cells.append(action_cell)
 
         return ft.DataRow(cells=cells, color={"hovered": ft.Colors.with_opacity(0.05, ft.Colors.PRIMARY)})
 
 
     def _update_datatable_rows(self):
+        if not self.datatable.columns:
+            self._initialize_columns()
+
         if not self._displayed_data:
-            self.datatable.rows = [ft.DataRow([ft.DataCell(ft.Text(self.no_data_message, italic=True), colspan=len(self.datatable.columns))])] # type: ignore
+            colspan = len(self.datatable.columns) if self.datatable.columns else 1
+            self.datatable.rows = [ft.DataRow([ft.DataCell(ft.Text(self.no_data_message, italic=True), colspan=colspan)])]
         else:
             start_index = (self._current_page_number - 1) * self.rows_per_page
             end_index = start_index + self.rows_per_page
@@ -279,22 +314,20 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             self.datatable.rows = [self._build_datarow(item) for item in paginated_items]
 
         self._update_pagination_controls()
-        if self.page: self.page.update()
+        if self.page and self.page.controls: self.page.update()
 
 
     def _update_pagination_controls(self):
-        if not self.page_info_text.page or not self.show_pagination: # Check if control is on page
+        if not self.page_info_text.page or not self.show_pagination:
             return
 
         total_rows = len(self._displayed_data)
         total_pages = ceil(total_rows / self.rows_per_page) if total_rows > 0 else 1
-        total_pages = max(1, total_pages) # Ensure at least 1 page
+        total_pages = max(1, total_pages)
 
         self.page_info_text.value = f"Page {self._current_page_number} of {total_pages}"
         self.prev_button.disabled = self._current_page_number == 1
         self.next_button.disabled = self._current_page_number == total_pages
-
-        # No individual updates, rely on page.update() in _update_datatable_rows
 
     def _prev_page(self, e):
         if self._current_page_number > 1:
@@ -309,29 +342,21 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             self._update_datatable_rows()
 
     def refresh_data_and_ui(self, search_term: Optional[str] = None):
-        """Fetches all data, then filters, sorts, and updates the UI."""
-        if search_term is None: # Use last known search term if none provided
+        if search_term is None:
             search_term = self._last_search_term
-        else: # Update last known search term if new one is provided
+        else:
             self._last_search_term = search_term
 
         try:
             with get_db_session() as db:
                 self._all_unfiltered_data = self.fetch_all_data_func(db)
 
-            # If a stats callback is provided, call it with unfiltered data stats
             if self.on_data_stats_changed:
-                # This part needs to be generic or configurable for what stats to compute.
-                # Example: total, active, expired for Games.
-                # For now, let's assume a simple total count.
-                # Subclasses can override this or on_data_stats_changed can be made more flexible.
-                # For GamesTable specifically, we'll handle its active/expired count in the subclass or adapter.
-                total_count = len(self._all_unfiltered_data)
-                # A more generic stats calculation would require more info or a specific callback.
-                # self.on_data_stats_changed(total_count, 0, 0) # Placeholder
-                # For now, let the specific table (GamesTable) trigger its specific on_data_changed.
+                # This is a generic hook. The specific stats calculation and call
+                # is now handled in the GamesTable override of _filter_and_sort_displayed_data.
+                pass
 
-            self._current_page_number = 1 # Reset to first page
+            self._current_page_number = 1
             self._filter_and_sort_displayed_data(search_term)
 
         except Exception as e:
@@ -344,10 +369,10 @@ class PaginatedDataTable(ft.Container, Generic[T]):
         return self._last_search_term
 
     def close_dialog_and_refresh(self, dialog_to_close: Optional[ft.AlertDialog] = None, success_message: Optional[str] = None):
-        """Helper to close a dialog (if provided) and refresh table data."""
-        if dialog_to_close and self.page.dialog == dialog_to_close:
-            self.page.close(dialog_to_close)
-            # self.page.dialog = None # Let caller manage this if needed, e.g. if dialog is instance var
+        current_dialog = dialog_to_close if dialog_to_close else self.page.dialog # type: ignore
+        if current_dialog and self.page.dialog == current_dialog :
+            self.page.close(current_dialog)
+
         if success_message and self.page:
             self.page.open(ft.SnackBar(ft.Text(success_message), open=True))
         self.refresh_data_and_ui(self._last_search_term)

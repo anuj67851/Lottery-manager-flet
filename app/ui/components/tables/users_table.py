@@ -29,7 +29,7 @@ class UsersTable(PaginatedDataTable[User]):
              "display_formatter": lambda val: ft.Text(str(val))},
             {"key": "role", "label": "Role", "sortable": True, "numeric": False, "searchable": True, # Role can be searched
              "display_formatter": lambda val: ft.Text(str(val).capitalize())},
-            {"key": "created_date", "label": "Created Date", "sortable": True, "numeric": False, "searchable": False,
+            {"key": "created_date", "label": "Created Date (YYYY-MM-DD)", "sortable": True, "numeric": False, "searchable": False,
              "display_formatter": lambda val_date: ft.Text(val_date.strftime("%Y-%m-%d %H:%M") if val_date else "")},
             {"key": "is_active", "label": "Is Active?", "sortable": True, "numeric": False, "searchable": False, # Not directly searchable as bool
              "display_formatter": lambda val_bool: ft.Text("Yes" if val_bool else "No", color=ft.Colors.GREEN if val_bool else ft.Colors.RED)},

@@ -137,7 +137,7 @@ class Book(Base):
     game = relationship("Game", back_populates="books")
 
     sales_entries = relationship("SalesEntry", back_populates="book")
-    book_number = Column(Integer, nullable=False) # Should this be unique per game?
+    book_number = Column(Integer, nullable=False)
 
     def __init__(self, **kwargs):
         """

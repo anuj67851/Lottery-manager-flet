@@ -2,7 +2,7 @@ import datetime
 
 from sqlalchemy.orm import Session # Added Session import
 from sqlalchemy.exc import IntegrityError
-from app.core.models import Game
+from app.core.models import Game, SalesEntry, Book
 from app.core.exceptions import DatabaseError, ValidationError, GameNotFoundError # Import custom exceptions
 
 
@@ -98,3 +98,57 @@ def reactivate_game_in_db(db: Session, game_id: int) -> Game | None:
     except Exception as e:
         db.rollback()
         raise DatabaseError(f"Could not reactivate game {game_id}: {e}")
+
+def has_game_ever_had_sales(db: Session, game_id: int) -> bool:
+    """
+    Checks if any book associated with the game has ever had a sales entry.
+    This implies the book (and thus the game's structure at that time) was actively used.
+    """
+    return db.query(SalesEntry.id) \
+        .join(Book) \
+        .filter(Book.game_id == game_id) \
+        .first() is not None
+
+def update_game_details(db: Session, game: Game, updates: dict) -> Game:
+    """
+    Updates a game record with the provided dictionary of changes.
+    Handles potential IntegrityError for game_number uniqueness.
+    """
+    original_game_number = game.game_number
+    game_number_changed = False
+
+    for key, value in updates.items():
+        if hasattr(game, key):
+            if key == "game_number" and value != original_game_number:
+                game_number_changed = True
+            setattr(game, key, value)
+        else:
+            # This should ideally not happen if 'updates' keys are validated beforehand
+            print(f"Warning: Attribute {key} not found on Game model during update.")
+
+    if game_number_changed:
+        # Explicitly check if the new game_number is already taken by another game
+        existing_game_with_new_number = db.query(Game).filter(
+            Game.game_number == game.game_number,
+            Game.id != game.id
+        ).first()
+        if existing_game_with_new_number:
+            # To prevent commit from failing due to unique constraint,
+            # revert game_number or raise specific error here.
+            # For now, let's raise a DatabaseError that the service layer can catch.
+            # Or, you could revert: game.game_number = original_game_number
+            raise DatabaseError(f"Game number '{game.game_number}' is already in use by another game.")
+    try:
+        db.commit()
+        db.refresh(game)
+        return game
+    except IntegrityError as e:
+        db.rollback()
+        # This might occur if the game_number check above had a race condition
+        # or if other unique constraints are violated.
+        if "game_number" in str(e.orig).lower(): # Check if it's about game_number
+            raise DatabaseError(f"Game number '{updates.get('game_number', game.game_number)}' is already in use (IntegrityError).")
+        raise DatabaseError(f"Database error updating game: {e.orig}")
+    except Exception as e:
+        db.rollback()
+        raise DatabaseError(f"Could not update game details: {e}")
