@@ -10,7 +10,6 @@ MANAGED_USER_ROLES = [ADMIN_ROLE, EMPLOYEE_ROLE]
 REVERSE_TICKET_ORDER = "reverse"
 FORWARD_TICKET_ORDER = "forward"
 
-
 # Route Names
 LOGIN_ROUTE = "login"
 ADMIN_DASHBOARD_ROUTE = "admin_dashboard"

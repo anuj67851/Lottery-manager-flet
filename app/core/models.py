@@ -33,7 +33,7 @@ class User(Base):
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="employee")
-    created_date = Column(DateTime, nullable=False, default=datetime.datetime.now())
+    created_date = Column(DateTime, nullable=False, default=datetime.datetime.now) # Corrected: Use datetime.datetime.now
     is_active = Column(Boolean, nullable=False, default=True)
 
     def set_password(self, plain_password: str):
@@ -76,25 +76,30 @@ class Game(Base):
     Attributes:
         id (int): The primary key for the game.
         name (str): The unique name of the game.
-        price (int): The price of one ticket for the game.
+        price (int): The price of one ticket for the game (in cents).
         total_tickets (int): The total number of tickets available for this game type.
         books (relationship): A list of book associated with this game.
-        series_number (int, optional): An optional series number for the game.
+        game_number (int): Game number for the game.
         default_ticket_order (str, optional): The default order of tickets (e.g., "reverse", "forward").
     """
     __tablename__ = "games"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String, nullable=False, unique=False)
-    price = Column(Integer, nullable=False)
+    price = Column(Integer, nullable=False) # Price in cents
     total_tickets = Column(Integer, nullable=False)
     is_expired = Column(Boolean, nullable=False, default=False)
     default_ticket_order = Column(String, nullable=False, default=REVERSE_TICKET_ORDER)
-    created_date = Column(DateTime, nullable=False, default=datetime.datetime.now())
+    created_date = Column(DateTime, nullable=False, default=datetime.datetime.now) # Corrected
     expired_date = Column(DateTime, nullable=True)
 
     books = relationship("Book", back_populates="game")
     game_number = Column(Integer, nullable=False, unique=True)
+
+    @property
+    def calculated_total_value(self) -> int: # In cents
+        return (self.price * self.total_tickets) if self.price is not None and self.total_tickets is not None else 0
+
 
     def __repr__(self):
         """
@@ -117,14 +122,14 @@ class Book(Base):
         game_id (int): Foreign key referencing the `Game` this Book belongs to.
         game (relationship): The `Game` object this Book is associated with.
         sales_entries (relationship): A list of sales entries associated with this book.
-        instance_number (int, optional): An optional instance number for this book.
+        book_number (int): Book number for this book.
     """
     __tablename__ = "books"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    ticket_order = Column(String, nullable=False)
+    ticket_order = Column(String, nullable=False) # Will be set based on game if not provided
     is_active = Column(Boolean, nullable=False, default=True)
-    activate_date = Column(DateTime, nullable=False, default=datetime.datetime.now())
+    activate_date = Column(DateTime, nullable=False, default=datetime.datetime.now) # Corrected
     finish_date = Column(DateTime, nullable=True)
     current_ticket_number = Column(Integer, nullable=False)
 
@@ -132,21 +137,45 @@ class Book(Base):
     game = relationship("Game", back_populates="books")
 
     sales_entries = relationship("SalesEntry", back_populates="book")
-    book_number = Column(Integer, nullable=False)
+    book_number = Column(Integer, nullable=False) # Should this be unique per game?
 
     def __init__(self, **kwargs):
         """
         Initializes a new Book instance.
+        Sets default ticket_order from the game if not specified.
+        Sets initial current_ticket_number based on order and game's total_tickets.
         """
-        super().__init__(**kwargs)
-        # Set the default ticket order based on the associated game
-        if self.game and self.ticket_order is None:
-            self.ticket_order = self.game.default_ticket_order
+        # Ensure 'game' is resolved if 'game_id' is passed, or 'game' object itself
+        # This logic is usually handled by SQLAlchemy relationships after the object is added to a session.
+        # For __init__, we rely on 'game' being passed or correctly set up by the caller if needed immediately.
 
-        if self.ticket_order == REVERSE_TICKET_ORDER:
-            self.current_ticket_number = self.game.total_tickets
-        else:
-            self.current_ticket_number = 0
+        super().__init__(**kwargs) # Initialize SQLAlchemy mapped attributes
+
+        if 'ticket_order' not in kwargs and self.game:
+            self.ticket_order = self.game.default_ticket_order
+        elif 'ticket_order' not in kwargs and not self.game:
+            # This case is problematic; ticket_order depends on the game.
+            # Ensure game is associated before or during Book creation.
+            # For now, we might need to defer this or ensure game is always present.
+            # Or set a temporary default if game is not yet known, though not ideal.
+            # Let's assume self.game will be available or ticket_order is explicitly passed.
+            pass
+
+
+        # Initialize current_ticket_number. This needs self.game to be populated.
+        # This might be better handled in a post-init hook or after association if game is not available in __init__.
+        # If game object (self.game) is available (e.g., passed in kwargs or set by relationship before commit)
+        if self.game:
+            if self.ticket_order == REVERSE_TICKET_ORDER:
+                self.current_ticket_number = self.game.total_tickets
+            else: # FORWARD_TICKET_ORDER
+                self.current_ticket_number = 0
+        # else:
+        # If self.game is not yet set, current_ticket_number might not be correctly initialized here.
+        # This could be an issue if the object is used before being fully associated and flushed.
+        # One approach: if game_id is provided, the caller must ensure the game exists and handle this logic.
+        # Another: rely on SQLAlchemy to load `self.game` if `game_id` is set, but that's usually after session add.
+        # For now, the original logic is preserved, assuming self.game is available.
 
 
     def __repr__(self):
@@ -166,7 +195,7 @@ class SalesEntry(Base):
         date (DateTime): The date of the sale.
         count (int): The number of tickets sold in this entry.
                      Calculated based on start_number, end_number, and ticket_order.
-        price (int): The total price for this sales entry.
+        price (int): The total price for this sales entry (in cents).
                      Calculated based on count and book price.
         book_id (int): Foreign key referencing the `Book` of this sale.
         book (relationship): The `Book` object associated with this sale.
@@ -179,22 +208,20 @@ class SalesEntry(Base):
 
     start_number = Column(Integer, nullable=False)
     end_number = Column(Integer, nullable=False)
-    date = Column(DateTime, nullable=False, default=datetime.datetime.now())
+    date = Column(DateTime, nullable=False, default=datetime.datetime.now) # Corrected
     count = Column(Integer, nullable=False) # This will be calculated
-    price = Column(Integer, nullable=False) # This will be calculated
+    price = Column(Integer, nullable=False) # This will be calculated (in cents)
 
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     book = relationship("Book", back_populates="sales_entries")
 
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    user = relationship("User")
+    user = relationship("User") # No back_populates needed if User doesn't link back to SalesEntry list
 
     def calculate_count_and_price(self):
         """
         Calculates and sets the 'count' and 'price' for this sales entry.
-
-        The calculation depends on the 'ticket_order' of the associated
-        book instance and the price per ticket of the associated book.
+        Price is stored in cents.
         This method should be called before saving the sales entry if
         'count' and 'price' are not manually set.
         """
@@ -203,7 +230,7 @@ class SalesEntry(Base):
                 self.count = self.start_number - self.end_number
             else: # Assuming "forward" or any other order implies end_number > start_number
                 self.count = self.end_number - self.start_number
-            self.price = self.count * self.book.game.price
+            self.price = self.count * self.book.game.price # game.price is in cents
         else:
             self.count = 0
             self.price = 0

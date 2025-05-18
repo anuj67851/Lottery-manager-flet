@@ -1,6 +1,6 @@
 import flet as ft
-from app.constants import LOGIN_ROUTE
 from app.core.models import User
+from app.ui.components.common.appbar_factory import create_appbar # Import AppBar factory
 
 class EmployeeDashboardView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User, license_status: bool, **params):
@@ -10,40 +10,28 @@ class EmployeeDashboardView(ft.Container):
         self.current_user = current_user
         self.license_status = license_status
 
-        # Set the page's AppBar
-        self.page.appbar = self._build_appbar()
-
-        # The content of this container will be the body of the dashboard
+        self.page.appbar = create_appbar(
+            page=self.page,
+            router=self.router,
+            title_text="Employee Dashboard",
+            current_user=self.current_user, # Show current user
+            license_status=self.license_status,
+            show_user_info=True # Explicitly show user info
+        )
         self.content = self._build_body()
 
-    def _build_appbar(self):
-        return ft.AppBar(
-            title=ft.Text("Employee Dashboard"),
-            bgcolor=ft.Colors.BLUE_700, # Kept original color
-            color=ft.Colors.WHITE,      # Kept original color
-            actions=[
-                ft.Text(f"License: {'Active' if self.license_status else 'Inactive'}", weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-                ft.Container(width=20), # Spacer
-                ft.IconButton(
-                    icon=ft.Icons.LOGOUT,
-                    tooltip="Logout",
-                    icon_color=ft.Colors.WHITE, # Kept original color
-                    on_click=self.logout,
-                ),
-            ],
-        )
-
-    def _build_body(self):
+    def _build_body(self) -> ft.Container:
         welcome_message = "Welcome, Employee!"
         if self.current_user and self.current_user.username:
             welcome_message = f"Welcome, {self.current_user.username}!"
 
-        # This is the content that goes *below* the AppBar
-        return ft.Container( # Main content container
+        return ft.Container(
             content=ft.Column(
                 [
                     ft.Text(welcome_message, size=28, weight=ft.FontWeight.BOLD),
-                    ft.Text("Enter sales.", size=16),
+                    ft.Text("This is the Employee Dashboard. Functionality to be added.", size=16),
+                    # Add employee-specific functions/buttons here
+                    # e.g., ft.FilledButton("Enter Daily Sales", on_click=lambda e: print("Sales Entry Clicked"))
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -53,8 +41,3 @@ class EmployeeDashboardView(ft.Container):
             alignment=ft.alignment.center,
             expand=True
         )
-
-    def logout(self, e):
-        self.current_user = None
-        # self.page.appbar = None # Router will handle clearing page.appbar
-        self.router.navigate_to(LOGIN_ROUTE)

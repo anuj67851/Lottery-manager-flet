@@ -26,8 +26,7 @@ def main(page: ft.Page):
 
     init_db()
     router = Router(page)
-    router.navigate_to(LOGIN_ROUTE)
-    page.update()
+    router.navigate_to(LOGIN_ROUTE) # Initial navigation
 
 if __name__ == "__main__":
     ft.app(target=main)

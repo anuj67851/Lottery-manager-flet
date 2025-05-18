@@ -15,18 +15,20 @@ def create_nav_card_button(
         shadow_opacity: float = 0.25,    # Opacity for the shadow color tint
         disabled: bool = False,
         tooltip: Optional[str] = None,
-        height: float = 150,
-        width: float = 150,
+        height: float = 150, # Consider making this adaptable or passed in
+        width: float = 150,  # Consider making this adaptable or passed in
 ) -> ft.Card:
 
     effective_router_params = router_params if router_params is not None else {}
 
-    def handle_click(e):
+    def handle_click(e): # Renamed event arg to 'e' for convention
         if disabled:
             return
-        print(f"NavCard Clicked: Navigating to {navigate_to_route} with params {effective_router_params}")
+        # print(f"NavCard Clicked: Navigating to {navigate_to_route} with params {effective_router_params}")
         if hasattr(router, 'navigate_to'): # For your custom Router class
             router.navigate_to(navigate_to_route, **effective_router_params)
+        elif hasattr(router, 'go'): # For Flet's page.go
+            router.go(navigate_to_route) # Flet's page.go doesn't take arbitrary params directly
         else:
             print("Router object not recognized or navigation method missing.")
 
@@ -42,22 +44,22 @@ def create_nav_card_button(
             ft.Text(
                 text,
                 weight=ft.FontWeight.W_500,
-                size=14, # Slightly smaller default text
+                size=14,
                 text_align=ft.TextAlign.CENTER,
-                color=ft.Colors.with_opacity(0.85, accent_color) if not disabled else ft.Colors.ON_SURFACE_VARIANT, # Text also tinted
+                color=ft.Colors.with_opacity(0.85, accent_color) if not disabled else ft.Colors.ON_SURFACE_VARIANT,
             ),
         ],
         alignment=ft.MainAxisAlignment.CENTER,
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=4, # Reduced spacing between icon and text
+        spacing=4,
     )
 
     clickable_area = ft.Container(
         content=button_internal_content,
         alignment=ft.alignment.center,
-        padding=15, # Padding inside the clickable area
-        border_radius=border_radius,
-        ink=not disabled, # Ripple effect on click
+        padding=15,
+        border_radius=ft.border_radius.all(border_radius), # Use ft.border_radius
+        ink=not disabled,
         on_click=handle_click if not disabled else None,
         bgcolor=ft.Colors.with_opacity(background_opacity, accent_color) if not disabled else ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE),
         tooltip=tooltip if not disabled else "Disabled",
@@ -67,6 +69,7 @@ def create_nav_card_button(
 
     return ft.Card(
         content=clickable_area,
-        elevation=5 if not disabled else 1, # Control shadow depth
+        elevation=5 if not disabled else 1,
         shadow_color=ft.Colors.with_opacity(shadow_opacity, accent_color) if not disabled else ft.Colors.BLACK26,
+        # surface_tint_color might be useful with Material 3 theming
     )

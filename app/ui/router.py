@@ -1,15 +1,18 @@
 import flet as ft
 
-from app.ui.views.admin.book_management import BookManagementView
-from app.ui.views.admin.game_management import GameManagementView
+# Import Views (ensure these are correctly named and located)
 from app.ui.views.login_view import LoginView
 from app.ui.views.admin_dashboard_view import AdminDashboardView
 from app.ui.views.employee_dashboard_view import EmployeeDashboardView
-# Import constants
-from app.constants import LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE, SALESPERSON_DASHBOARD_ROUTE, \
-    GAME_MANAGEMENT_ROUTE, BOOK_MANAGEMENT_ROUTE
 from app.ui.views.salesperson_dashboard_view import SalesPersonDashboardView
+from app.ui.views.admin.game_management import GameManagementView
+from app.ui.views.admin.book_management import BookManagementView
 
+# Import constants for route names
+from app.constants import (
+    LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE,
+    SALESPERSON_DASHBOARD_ROUTE, GAME_MANAGEMENT_ROUTE, BOOK_MANAGEMENT_ROUTE
+)
 
 class Router:
     def __init__(self, page: ft.Page):
@@ -22,31 +25,47 @@ class Router:
             GAME_MANAGEMENT_ROUTE: GameManagementView,
             BOOK_MANAGEMENT_ROUTE: BookManagementView,
         }
-        self.current_view = None # Keep track of the current view instance
-        self.current_route_name = None # Keep track of current route name
+        self.current_view_instance = None # Keep track of the current view instance
+        self.current_route_name = None    # Keep track of current route name
 
-    def navigate_to(self, route_name, **params):
-        # Clear the page only if a new view is being loaded or route changes
-        if self.current_view and self.current_route_name != route_name:
-            self.page.controls.clear() # Clear all controls
-            self.page.appbar = None    # Clear appbar too if views manage it
-            self.page.dialog = None    # Clear any open dialogs
-            self.current_view = None   # Reset current view
+    def navigate_to(self, route_name: str, **params):
+        """
+        Navigates to the specified route, clearing the page and instantiating the new view.
+        """
+        print(f"Navigating to '{route_name}' with params: {params}")
 
-        self.current_route_name = route_name # Update current route name
+        # Clear previous view's specific elements if they exist and route is changing
+        if self.current_route_name != route_name:
+            self.page.controls.clear()
+            self.page.appbar = None # Views are responsible for their own AppBars
+            self.page.dialog = None # Clear any existing dialog
+            self.page.banner = None # Clear any existing banner
+            self.page.snack_bar = None # Clear any existing snackbar
+            # self.current_view_instance = None # Reset instance reference
+
+        self.current_route_name = route_name
 
         if route_name in self.routes:
             view_class = self.routes[route_name]
-            # Instantiate the view, applying the white screen fix pattern
-            self.current_view = view_class(page=self.page, router=self, **params)
-            self.page.add(self.current_view)
+            try:
+                # Instantiate the view, passing the page, router, and any other params
+                self.current_view_instance = view_class(page=self.page, router=self, **params)
+                self.page.add(self.current_view_instance)
+            except Exception as e:
+                print(f"Error instantiating view for route '{route_name}': {e}")
+                # Fallback or error display logic
+                self.page.controls.clear() # Clear potentially broken UI
+                self.page.add(ft.Text(f"Error loading page: {route_name}. Details: {e}", color=ft.Colors.RED))
+                # Optionally navigate to a known safe route like login
+                if route_name != LOGIN_ROUTE:
+                    self.navigate_to(LOGIN_ROUTE) # Avoid recursion if login itself fails
         else:
-            # Handle unknown route, e.g., show a "Not Found" view or navigate to login
-            print(f"Error: Route '{route_name}' not found. Navigating to login.")
-            # Fallback to login view
+            print(f"Error: Route '{route_name}' not found. Navigating to login as fallback.")
+            self.page.controls.clear()
+            # Fallback to login view if route is unknown
             login_view_class = self.routes[LOGIN_ROUTE]
-            self.current_view = login_view_class(page=self.page, router=self)
-            self.page.add(self.current_view)
+            self.current_view_instance = login_view_class(page=self.page, router=self) # No params for login usually
+            self.page.add(self.current_view_instance)
             self.current_route_name = LOGIN_ROUTE
 
         self.page.update()

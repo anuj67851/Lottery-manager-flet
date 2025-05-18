@@ -9,107 +9,111 @@ from app.constants import (
     ADMIN_ROLE, ADMIN_DASHBOARD_ROUTE,
     EMPLOYEE_DASHBOARD_ROUTE, EMPLOYEE_ROLE,
     SALESPERSON_DASHBOARD_ROUTE, SALESPERSON_ROLE,
-    LOGIN_ROUTE
 )
 from app.core.models import User
-
+from app.ui.components.common.appbar_factory import create_appbar # Import AppBar factory
+from app.config import APP_TITLE # Use APP_TITLE from config
 
 class LoginView(ft.Container):
     def __init__(self, page: ft.Page, router, **params):
         super().__init__(expand=True, alignment=ft.alignment.center)
         self.page = page
         self.router = router
+        # Services are typically not instantiated per view, but rather passed or accessed globally/via DI.
+        # For simplicity here, keeping them as instance variables if needed by methods in this view.
         self.user_service = UserService()
         self.license_service = LicenseService()
-        self.auth_service = AuthService()
-        self.page.appbar = self._build_appbar()
-        
-        login_form = LoginForm(page=self.page, on_login_success=self.on_login_success)
-        self.current_form_container = login_form # Placeholder for form
-        self.content = self._build_layout() # Build base layout first
+        self.auth_service = AuthService() # AuthService will be used by LoginForm
 
-    def _build_appbar(self):
-        return ft.AppBar(
-            title=ft.Text("Lottery Management System"),
-            bgcolor=ft.Colors.BLUE_700, # Kept original color
-            color=ft.Colors.WHITE,      # Kept original color
+        self.page.appbar = create_appbar(
+            page=self.page,
+            router=self.router, # Pass router for logout
+            title_text=APP_TITLE, # Use app title from config
+            show_logout_button=False, # No logout button on login screen
+            show_user_info=False,     # No user info on login screen
+            show_license_status=False # No license status on login screen
         )
 
-    def _build_layout(self):
-        # The self.current_form_container will hold either Login or AdminCreationForm
+        self.login_form_component = LoginForm(page=self.page, on_login_success=self._handle_login_success)
+        # current_form_container is now self.login_form_component
+        self.content = self._build_layout()
+
+    def _build_layout(self) -> ft.Column:
         return ft.Column(
             [
                 ft.Container(
                     content=ft.Icon(
-                        ft.Icons.LOCK_PERSON_OUTLINED, # Kept original icon
-                        color=ft.Colors.BLUE_GREY_300, # Kept original color
+                        ft.Icons.LOCK_PERSON_OUTLINED,
+                        color=ft.Colors.BLUE_GREY_300, # Use a theme-aware color if possible
                         size=80,
                     ),
                     padding=ft.padding.only(bottom=20),
                 ),
                 ft.Container(
-                    content=self.current_form_container, # This is where the form goes
+                    content=self.login_form_component, # The LoginForm instance
                     padding=30,
-                    border_radius=12,
-                    bgcolor=ft.Colors.WHITE70, # Kept original style
+                    border_radius=ft.border_radius.all(12),
+                    bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.BLACK), # Subtle background for the form card
+                    # Use theme surface color if available, e.g., self.page.theme.surfaceVariant
                     shadow=ft.BoxShadow(
-                        spread_radius=1,
-                        blur_radius=10,
-                        color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK26), # Kept original style
-                        offset=ft.Offset(0, 4),
+                        spread_radius=1, blur_radius=15,
+                        color=ft.Colors.with_opacity(0.1, ft.Colors.BLACK26),
+                        offset=ft.Offset(0, 5),
                     ),
-                    width=400,
+                    width=400, # Fixed width for the login card
                 ),
                 ft.Container(
                     content=ft.Text(
                         "© 2025 Anuj Patel · All Rights Reserved · Built using Python and Flet",
                         size=12,
-                        color=ft.Colors.GREY_400,
+                        color=ft.Colors.GREY_500, # Softer color
                         text_align=ft.TextAlign.CENTER,
                     ),
                     alignment=ft.alignment.center,
                     padding=10,
-                    margin=ft.margin.only(top=10),
+                    margin=ft.margin.only(top=30), # More space from form
                 ),
-
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=20,
+            spacing=20, # Spacing between elements in the Column
             expand=True,
         )
 
-    def on_login_success(self, user: User):
-        user_params = {"current_user": user}
-        user_role = self.auth_service.get_user_role(user)
+    def _handle_login_success(self, user: User): # Renamed from on_login_success
+        # This method is called by LoginForm upon successful authentication
+        user_params = {"current_user": user} # Params for the next view
+        user_role = self.auth_service.get_user_role(user) # AuthService already used by LoginForm
 
-        license_activated = False
-        with get_db_session() as db:
-            license_activated = self.license_service.get_license_status(db)
+        license_activated = False # Default
+        try:
+            with get_db_session() as db:
+                license_activated = self.license_service.get_license_status(db)
+        except Exception as e:
+            print(f"Error fetching license status: {e}")
+            # Show error to user, prevent login, or proceed with license_activated = False
+            self.page.open(ft.SnackBar(ft.Text("Could not verify license status. Please try again."), open=True, bgcolor=ft.Colors.ERROR))
+            return # Stay on login page
 
         user_params["license_status"] = license_activated
 
+        # Route based on role and license status
         if user_role == SALESPERSON_ROLE:
             self.router.navigate_to(SALESPERSON_DASHBOARD_ROUTE, **user_params)
-        elif license_activated:
+        elif license_activated: # Admin or Employee require active license
             if user_role == ADMIN_ROLE:
                 self.router.navigate_to(ADMIN_DASHBOARD_ROUTE, **user_params)
             elif user_role == EMPLOYEE_ROLE:
                 self.router.navigate_to(EMPLOYEE_DASHBOARD_ROUTE, **user_params)
-            else: # Should not happen if roles are well-defined
-                self.page.open(ft.SnackBar(ft.Text("Unknown user role after login."), open=True, bgcolor=ft.Colors.ERROR))
-                self.router.navigate_to(LOGIN_ROUTE) # Fallback to login
-        else: # License not activated for Admin/Employee
+            else: # Should not happen with defined roles
+                self.page.open(ft.SnackBar(ft.Text(f"Unknown user role '{user_role}'. Access denied."), open=True, bgcolor=ft.Colors.ERROR))
+                # Potentially log this unexpected state
+                # self.router.navigate_to(LOGIN_ROUTE) # Fallback to login
+        else: # Admin/Employee tried to log in with inactive license
             self.page.open(
                 ft.SnackBar(
-                    content=ft.Text("License not activated. Please contact your salesperson to activate the license."),
-                    open=True,
-                    duration=4000
+                    content=ft.Text("License not active. Please contact your salesperson to activate."),
+                    open=True, duration=5000 # Longer duration for important message
                 )
             )
-            # Do not navigate away, user stays on login page or current form
-            # If they are salesperson, they would have already navigated.
-            # This means an admin/employee tried to log in with inactive license.
-            # self.router.navigate_to(LOGIN_ROUTE) # Or stay on login page
-            # Let them retry or wait for salesperson to activate license.
-            # If the current form is AdminCreationForm, it's fine. If LoginForm, they can retry.
+            # User stays on login page. LoginForm will clear fields or user can retry.
