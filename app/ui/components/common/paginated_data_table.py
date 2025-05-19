@@ -167,31 +167,33 @@ class PaginatedDataTable(ft.Container, Generic[T]):
         Handles None values by returning type-appropriate min/max values.
         """
         col_def = self._get_column_def_by_key(sort_key)
-        raw_value = getattr(item, sort_key, None)
+
+        raw_value: Any
+        if isinstance(item, dict):
+            raw_value = item.get(sort_key)
+        else: # Assume object
+            raw_value = getattr(item, sort_key, None)
 
         if col_def and col_def.get('custom_sort_value_getter'):
+            # For custom_sort_value_getter, it's responsible for handling the item type (obj or dict)
             return col_def['custom_sort_value_getter'](item)
 
         if isinstance(raw_value, str):
             return raw_value.lower() # Case-insensitive sort for strings
 
         if raw_value is None:
-            # Get the type of the attribute from a non-None item if possible,
-            # or rely on a hint from column_definitions if provided.
-            # For simplicity here, we'll check if the sort_key corresponds to known date fields.
-            # A more robust solution might involve passing a 'data_type' in column_definitions.
-
-            # Specifically handle None for datetime fields
-            if sort_key in ["created_date", "expired_date", "activate_date", "finish_date", "date"]: # Add any other date keys
+            if sort_key in ["created_date", "expired_date", "activate_date", "finish_date", "date"]:
                 return datetime.datetime.min if self._current_sort_ascending else datetime.datetime.max
-            else: # Default for other types
+            else:
                 return float('-inf') if self._current_sort_ascending else float('inf')
 
-        # If raw_value is already a datetime, it's fine
         if isinstance(raw_value, datetime.datetime):
             return raw_value
 
-        # For other types (numbers, booleans), return as is
+        if isinstance(raw_value, datetime.date): # Handle date objects too
+            return raw_value
+
+
         return raw_value
 
 
@@ -207,32 +209,36 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             for item in self._all_unfiltered_data:
                 found = False
                 for key in searchable_keys:
-                    value = getattr(item, key, None)
+                    value: Any
+                    if isinstance(item, dict):
+                        value = item.get(key)
+                    else: # Assume object
+                        value = getattr(item, key, None)
+
                     col_def_for_key = self._get_column_def_by_key(key)
                     display_formatter = col_def_for_key.get('display_formatter') if col_def_for_key else None
 
                     str_value = ""
                     if display_formatter:
-                        # Check number of parameters the formatter expects from the caller
                         num_params = 0
                         if callable(display_formatter):
                             try:
                                 num_params = len(inspect.signature(display_formatter).parameters)
-                            except ValueError: # Some callables might not have a clear signature (e.g. built-in)
+                            except ValueError:
                                 pass
 
                         formatted_control: Optional[ft.Control] = None
-                        if num_params == 2: # Assumes (value, item)
+                        if num_params == 2:
                             formatted_control = display_formatter(value, item)
-                        elif num_params == 1: # Assumes (value)
+                        elif num_params == 1:
                             formatted_control = display_formatter(value)
-                        else: # Fallback or if not a standard formatter
+                        else:
                             formatted_control = ft.Text(str(value) if value is not None else "")
 
 
                         if isinstance(formatted_control, ft.Text):
                             str_value = str(formatted_control.value).lower()
-                        elif value is not None: # Fallback if formatter returns non-Text or complex Control
+                        elif value is not None:
                             str_value = str(value).lower()
                     elif value is not None:
                         str_value = str(value).lower()
@@ -256,38 +262,33 @@ class PaginatedDataTable(ft.Container, Generic[T]):
         cells: List[ft.DataCell] = []
         for col_def in self.column_definitions:
             key = col_def['key']
-            raw_value = getattr(item, key, None)
+
+            raw_value: Any
+            if isinstance(item, dict):
+                raw_value = item.get(key)
+            else: # Assume object
+                raw_value = getattr(item, key, None)
+
             formatter = col_def.get('display_formatter')
 
             cell_content: ft.Control
-            if formatter and callable(formatter): # Ensure formatter is callable
+            if formatter and callable(formatter):
                 try:
-                    # Use inspect.signature to determine how to call the formatter
                     sig = inspect.signature(formatter)
                     num_params = len(sig.parameters)
 
-                    if num_params == 2:  # Expects (value, item)
+                    if num_params == 2:
                         cell_content = formatter(raw_value, item)
-                    elif num_params == 1:  # Expects (value)
+                    elif num_params == 1:
                         cell_content = formatter(raw_value)
                     else:
-                        # This case can happen if a method is passed without 'self' being bound,
-                        # or if the signature is unusual.
-                        # For instance methods like self._format_expired_date_cell,
-                        # len(inspect.signature(self._format_expired_date_cell).parameters) is 2.
-                        # So this 'else' should ideally not be hit for well-defined formatters.
-                        # print(f"Warning: Formatter for key {key} has an unexpected signature: {sig}. Defaulting display.")
                         cell_content = ft.Text(str(raw_value) if raw_value is not None else "", size=12.5)
-                except ValueError: # E.g. for built-in functions that inspect.signature might not handle as expected
-                    # print(f"Warning: Could not inspect signature for formatter of key {key}. Attempting call with value only.")
+                except ValueError:
                     try:
-                        cell_content = formatter(raw_value) # Try calling with just value
+                        cell_content = formatter(raw_value)
                     except TypeError:
-                        # print(f"Error: Formatter for key {key} failed. Defaulting display.")
                         cell_content = ft.Text(str(raw_value) if raw_value is not None else "", size=12.5)
-
                 except Exception as e:
-                    # print(f"Error applying formatter for key {key}: {e}. Defaulting display.")
                     cell_content = ft.Text(str(raw_value) if raw_value is not None else "", size=12.5)
             else:
                 cell_content = ft.Text(str(raw_value) if raw_value is not None else "", size=12.5)
@@ -302,47 +303,52 @@ class PaginatedDataTable(ft.Container, Generic[T]):
 
     def _update_datatable_rows(self):
         if not self.datatable.columns:
-            self._initialize_columns() # Ensures self.datatable.columns is populated
+            self._initialize_columns()
 
         num_defined_columns = len(self.datatable.columns) if self.datatable.columns else 0
 
         if not self._displayed_data:
             if num_defined_columns > 0:
-                # This is the row displayed when there's no data.
-                # It needs one DataCell for each defined DataColumn.
-
-                # Create the first cell with the "No data" message.
                 no_data_text_widget = ft.Text(
                     self.no_data_message,
                     italic=True,
                     text_align=ft.TextAlign.CENTER,
                 )
-                first_cell = ft.DataCell(no_data_text_widget)
-                # Set its colspan to span all columns.
-                first_cell.colspan = num_defined_columns
+                # Create a single cell that spans all columns for the "No data" message
+                # Flet DataTable doesn't support colspan directly on DataCell.
+                # We show the message in the first cell and make other cells empty.
+                # The visual spanning is more about how the content in the first cell is presented.
 
-                # Initialize the list of cells for this row with the first cell.
+                first_cell_content = ft.Container(
+                    content=no_data_text_widget,
+                    alignment=ft.alignment.center,
+                    expand=True # Allow it to take available width
+                )
+                first_cell = ft.DataCell(first_cell_content)
+
+                # For a row with a single spanning cell message, you'd ideally set just one cell.
+                # However, DataTable expects a cell for each column.
+                # A common workaround is to put the message in the first cell
+                # and empty cells for the rest, then rely on the first cell's content to expand.
+                # OR, better: Flet example shows creating a single row with one cell, if the message spans.
+                # If num_defined_columns > 0, we need to provide cells for all.
+
                 cells_for_no_data_row = [first_cell]
-
-                # Add (N-1) empty DataCells to make up the total column count.
-                # These cells are structurally required by DataTable, even if the first cell spans them.
-                # They won't take up visual space if the colspan of the first cell is correctly rendered.
                 for _ in range(1, num_defined_columns):
-                    cells_for_no_data_row.append(ft.DataCell(ft.Text(""))) # Empty content
+                    cells_for_no_data_row.append(ft.DataCell(ft.Text("")))
 
                 self.datatable.rows = [ft.DataRow(cells=cells_for_no_data_row)]
+
             else:
-                # No columns defined, so no rows can be added.
                 self.datatable.rows = []
         else:
-            # Logic for when there IS data (this part should be okay)
             start_index = (self._current_page_number - 1) * self.rows_per_page
             end_index = start_index + self.rows_per_page
             paginated_items = self._displayed_data[start_index:end_index]
             self.datatable.rows = [self._build_datarow(item) for item in paginated_items]
 
         self._update_pagination_controls()
-        if self.page and self.page.controls: # Ensure page and controls exist before updating
+        if self.page and self.page.controls:
             self.page.update()
 
 
@@ -377,12 +383,16 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             self._last_search_term = search_term
 
         try:
-            with get_db_session() as db:
-                self._all_unfiltered_data = self.fetch_all_data_func(db)
+            # Check if fetch_all_data_func expects a db_session argument
+            sig = inspect.signature(self.fetch_all_data_func)
+            if 'db_session' in sig.parameters or 'db' in sig.parameters: # Common names for db session
+                with get_db_session() as db:
+                    self._all_unfiltered_data = self.fetch_all_data_func(db)
+            else: # Assumes it takes no arguments (like the report table using a cache)
+                self._all_unfiltered_data = self.fetch_all_data_func()
+
 
             if self.on_data_stats_changed:
-                # This is a generic hook. The specific stats calculation and call
-                # is now handled in the GamesTable override of _filter_and_sort_displayed_data.
                 pass
 
             self._current_page_number = 1
@@ -390,6 +400,8 @@ class PaginatedDataTable(ft.Container, Generic[T]):
 
         except Exception as e:
             print(f"Error refreshing data for table: {e}")
+            self._all_unfiltered_data = [] # Clear data on error to show "No data" message
+            self._filter_and_sort_displayed_data("") # This will call _update_datatable_rows
             if self.page:
                 self.page.open(ft.SnackBar(ft.Text(f"Error loading data: {type(e).__name__}"), open=True, bgcolor=ft.Colors.ERROR))
 

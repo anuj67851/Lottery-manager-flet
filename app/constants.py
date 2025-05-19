@@ -40,3 +40,10 @@ ADMIN_USER_MANAGEMENT_ROUTE = "admin_user_management"
 BOOK_ACTION_ADD_NEW = "add_new"
 BOOK_ACTION_FULL_SALE = "full_sale"
 BOOK_ACTION_ACTIVATE = "activate"
+
+# Report Routes (Admin Specific)
+SALES_BY_DATE_REPORT_ROUTE = "sales_by_date_report"
+# Placeholders for other reports - can be expanded later
+BOOK_OPEN_REPORT_ROUTE = "book_open_report"
+GAME_EXPIRY_REPORT_ROUTE = "game_expiry_report"
+STOCK_LEVELS_REPORT_ROUTE = "stock_levels_report"

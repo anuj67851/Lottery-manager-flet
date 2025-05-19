@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.constants import (
     LOGIN_ROUTE, GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE, BOOK_MANAGEMENT_ROUTE,
     SALES_ENTRY_ROUTE, BOOK_ACTION_FULL_SALE, BOOK_ACTION_ACTIVATE,
-    ADMIN_USER_MANAGEMENT_ROUTE # New import
+    ADMIN_USER_MANAGEMENT_ROUTE, SALES_BY_DATE_REPORT_ROUTE  # New import
 )
 from app.core import BookNotFoundError
 from app.core.models import User
@@ -246,16 +246,21 @@ class AdminDashboardView(ft.Container):
         buttons = [
             create_nav_card_button(
                 router=self.router, text="Sales by Date", icon_name=ft.Icons.CALENDAR_MONTH_ROUNDED,
-                accent_color=ft.Colors.ORANGE_700, navigate_to_route=LOGIN_ROUTE, tooltip="Sales Report", disabled=True),
+                accent_color=ft.Colors.ORANGE_700, navigate_to_route=SALES_BY_DATE_REPORT_ROUTE, # Updated
+                tooltip="View sales report filtered by date and user", disabled=False, # Enabled
+                router_params=self.navigation_params_for_children),
             create_nav_card_button(
                 router=self.router, text="Book Open Report", icon_name=ft.Icons.ASSESSMENT_ROUNDED,
-                accent_color=ft.Colors.INDIGO_400, navigate_to_route=LOGIN_ROUTE, tooltip="Book Open Report", disabled=True),
+                accent_color=ft.Colors.INDIGO_400, navigate_to_route=LOGIN_ROUTE, # Placeholder for now
+                tooltip="Report on currently open/active books (Coming Soon)", disabled=True),
             create_nav_card_button(
                 router=self.router, text="Game Expiry Report", icon_name=ft.Icons.UPDATE_ROUNDED,
-                accent_color=ft.Colors.DEEP_ORANGE_700, navigate_to_route=LOGIN_ROUTE, tooltip="Game Expire Report", disabled=True),
+                accent_color=ft.Colors.DEEP_ORANGE_700, navigate_to_route=LOGIN_ROUTE, # Placeholder for now
+                tooltip="Report on game expiration dates (Coming Soon)", disabled=True),
             create_nav_card_button(
                 router=self.router, text="Stock Levels", icon_name=ft.Icons.STACKED_BAR_CHART_ROUNDED,
-                accent_color=ft.Colors.BROWN_500, navigate_to_route=LOGIN_ROUTE, tooltip="Book Stock Report", disabled=True),
+                accent_color=ft.Colors.BROWN_500, navigate_to_route=LOGIN_ROUTE, # Placeholder for now
+                tooltip="Report on book stock levels (Coming Soon)", disabled=True),
         ]
         return self._create_section_quadrant(
             title="Data & Reports", title_color=ft.Colors.AMBER_900,
