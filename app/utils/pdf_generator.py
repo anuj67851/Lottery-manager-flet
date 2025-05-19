@@ -1,7 +1,7 @@
 import datetime
 import os
 from typing import List, Dict, Any, Optional
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter, landscape # Added landscape
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image,
@@ -110,6 +110,15 @@ class PDFGenerator:
         ))
 
         self.styles.add(ParagraphStyle(
+            name='TableCellCenter',
+            fontName=base_font,
+            fontSize=9,
+            leading=11,
+            alignment=TA_CENTER
+        ))
+
+
+        self.styles.add(ParagraphStyle(
             name='SummaryTotal',
             fontName=bold_font,
             fontSize=10,
@@ -132,7 +141,7 @@ class PDFGenerator:
             rightMargin=right_margin,
             topMargin=top_margin,
             bottomMargin=bottom_margin,
-            title=f"Sales Report - {datetime.datetime.now().strftime('%Y-%m-%d')}",
+            title=f"Report - {datetime.datetime.now().strftime('%Y-%m-%d')}", # Generic title
             author=self.company_name
         )
 
@@ -150,7 +159,7 @@ class PDFGenerator:
             # Add a simple title
             c.setFont("Helvetica-Bold", 16)
             c.drawString(left_margin, self.page_size[1] - top_margin - 20,
-                         f"Sales Report - {datetime.datetime.now().strftime('%Y-%m-%d')}")
+                         f"Report - {datetime.datetime.now().strftime('%Y-%m-%d')}")
 
             # Add a line
             c.line(left_margin, self.page_size[1] - top_margin - 30,
@@ -274,9 +283,12 @@ class PDFGenerator:
 
         # Set default column widths if not provided
         if not column_widths:
-            column_widths = [1.2*inch, 1.2*inch, 1.2*inch, 0.6*inch,
-                             0.8*inch, 0.6*inch, 0.6*inch, 0.6*inch,
-                             0.7*inch, 0.7*inch]
+            page_width, _ = self.page_size
+            available_width = page_width - 1.5 * inch # Margins
+            num_cols = len(column_headers)
+            default_col_width = available_width / num_cols if num_cols > 0 else 1*inch
+            column_widths = [default_col_width] * num_cols
+
 
         # Create table
         table = Table(table_data, colWidths=column_widths, repeatRows=1)
@@ -303,12 +315,15 @@ class PDFGenerator:
             # Total row styling
             ('BACKGROUND', (0, -1), (-1, -1), colors.lightsteelblue),
             ('LINEABOVE', (0, -1), (-1, -1), 1, colors.darkblue),
-            ('SPAN', (0, -1), (6, -1)),
+            ('SPAN', (0, -1), (6, -1)), # Span first 7 columns for "Totals:"
         ])
 
         # Align numeric columns to the right
-        for idx in [3, 5, 6, 7, 8, 9]:
-            style.add('ALIGN', (idx, 1), (idx, -1), 'RIGHT')
+        for idx, header in enumerate(column_headers):
+            # Heuristic: if header contains common numeric indicators or is one of the specific numeric fields
+            if any(s in header.lower() for s in ['#', 'qty', 'price', 'total', 'value', 'number', 'tkt']) or header.lower() in ["start #", "end #"]:
+                style.add('ALIGN', (idx, 1), (idx, -2), 'RIGHT') # Align data rows
+                style.add('ALIGN', (idx, -1), (idx, -1), 'RIGHT') # Align total row if applicable
 
         table.setStyle(style)
 
@@ -340,3 +355,161 @@ class PDFGenerator:
         ]))
 
         self.story.append(summary_table)
+
+    def generate_book_open_report_table(self, data: List[Dict[str, Any]], column_headers: List[str], column_widths: Optional[List[float]] = None):
+        if not data:
+            self.story.append(Paragraph("No open books found for the selected criteria.", self.styles['FilterInfo']))
+            return
+
+        self.story.append(Paragraph("Open Book Details", self.styles['SectionTitle']))
+        self.add_spacer(6)
+
+        table_data = [[Paragraph(header, self.styles['TableHeader']) for header in column_headers]]
+        grand_total_remaining_value = 0
+
+        for item in data:
+            activate_date_str = item.get('activate_date').strftime('%Y-%m-%d %H:%M') if item.get('activate_date') else 'N/A'
+            row = [
+                Paragraph(str(item.get('game_name', '')), self.styles['TableCell']),
+                Paragraph(str(item.get('game_number', '')), self.styles['TableCellCenter']),
+                Paragraph(str(item.get('book_number', '')), self.styles['TableCellCenter']),
+                Paragraph(activate_date_str, self.styles['TableCellCenter']),
+                Paragraph(str(item.get('current_ticket_number', '')), self.styles['TableCellRight']),
+                Paragraph(str(item.get('ticket_order', '')).capitalize(), self.styles['TableCellCenter']),
+                Paragraph(str(item.get('remaining_tickets', 0)), self.styles['TableCellRight']),
+                Paragraph(f"${item.get('game_price_per_ticket', 0):.2f}", self.styles['TableCellRight']),
+                Paragraph(f"${item.get('remaining_value', 0):.2f}", self.styles['TableCellRight']),
+            ]
+            table_data.append(row)
+            grand_total_remaining_value += item.get('remaining_value', 0)
+
+        # Totals row
+        totals_row = [Paragraph("<b>Grand Total Remaining Value:</b>", self.styles['SummaryTotal'])] + [''] * (len(column_headers) - 2) + [
+            Paragraph(f"<b>${grand_total_remaining_value:.2f}</b>", self.styles['SummaryTotal'])
+        ]
+        table_data.append(totals_row)
+
+        if not column_widths:
+            page_width, _ = self.page_size; available_width = page_width - 1.5 * inch
+            num_cols = len(column_headers); default_col_width = available_width / num_cols if num_cols > 0 else 1*inch
+            column_widths = [default_col_width] * num_cols
+
+        table = Table(table_data, colWidths=column_widths, repeatRows=1)
+        style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.cornflowerblue), ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey), ('LINEBELOW', (0, 0), (-1, 0), 1, colors.darkblue),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.whitesmoke, colors.lightgrey]),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.lightsteelblue),
+            ('LINEABOVE', (0, -1), (-1, -1), 1, colors.darkblue),
+            ('SPAN', (0, -1), (len(column_headers) - 2, -1)), # Span for "Grand Total" text
+            ('ALIGN', (len(column_headers) -1, -1), (len(column_headers) -1, -1), 'RIGHT') # Align total value
+        ])
+        # Align specific columns
+        numeric_right_cols = [4, 6, 7, 8] # Curr. Tkt, Rem. Tkts, Tkt Price, Rem. Value
+        center_cols = [1, 2, 3, 5] # Game No, Book No, Activated, Order
+        for idx in numeric_right_cols: style.add('ALIGN', (idx, 1), (idx, -2), 'RIGHT')
+        for idx in center_cols: style.add('ALIGN', (idx, 1), (idx, -2), 'CENTER')
+        table.setStyle(style)
+        self.story.append(KeepTogether(table))
+
+    def generate_game_expiry_report_table(self, data: List[Dict[str, Any]], column_headers: List[str], column_widths: Optional[List[float]] = None):
+        if not data:
+            self.story.append(Paragraph("No games found for the selected criteria.", self.styles['FilterInfo']))
+            return
+
+        self.story.append(Paragraph("Game Expiry Details", self.styles['SectionTitle']))
+        self.add_spacer(6)
+
+        table_data = [[Paragraph(header, self.styles['TableHeader']) for header in column_headers]]
+        for item in data:
+            created_date_str = item.get('created_date').strftime('%Y-%m-%d') if item.get('created_date') else 'N/A'
+            expired_date_str = item.get('expired_date').strftime('%Y-%m-%d') if item.get('expired_date') else ('Active' if not item.get('is_expired') else 'N/A')
+            status_str = "Expired" if item.get('is_expired') else "Active"
+            row = [
+                Paragraph(str(item.get('name', '')), self.styles['TableCell']),
+                Paragraph(str(item.get('game_number', '')), self.styles['TableCellCenter']),
+                Paragraph(f"${item.get('price', 0):.2f}", self.styles['TableCellRight']),
+                Paragraph(str(item.get('total_tickets', '')), self.styles['TableCellRight']),
+                Paragraph(status_str, self.styles['TableCellCenter']),
+                Paragraph(created_date_str, self.styles['TableCellCenter']),
+                Paragraph(expired_date_str, self.styles['TableCellCenter']),
+            ]
+            table_data.append(row)
+
+        if not column_widths:
+            page_width, _ = self.page_size; available_width = page_width - 1.5 * inch
+            num_cols = len(column_headers); default_col_width = available_width / num_cols if num_cols > 0 else 1*inch
+            column_widths = [default_col_width] * num_cols
+
+        table = Table(table_data, colWidths=column_widths, repeatRows=1)
+        style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.cornflowerblue), ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey), ('LINEBELOW', (0, 0), (-1, 0), 1, colors.darkblue),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ])
+        numeric_right_cols = [2, 3] # Price, Total Tkts
+        center_cols = [1, 4, 5, 6] # Game No, Status, Created, Expired On
+        for idx in numeric_right_cols: style.add('ALIGN', (idx, 1), (idx, -1), 'RIGHT')
+        for idx in center_cols: style.add('ALIGN', (idx, 1), (idx, -1), 'CENTER')
+        table.setStyle(style)
+        self.story.append(KeepTogether(table))
+
+    def generate_stock_levels_report_table(self, data: List[Dict[str, Any]], column_headers: List[str], column_widths: Optional[List[float]] = None):
+        if not data:
+            self.story.append(Paragraph("No stock level data found for the selected criteria.", self.styles['FilterInfo']))
+            return
+
+        self.story.append(Paragraph("Stock Level Details", self.styles['SectionTitle']))
+        self.add_spacer(6)
+
+        table_data = [[Paragraph(header, self.styles['TableHeader']) for header in column_headers]]
+        grand_total_active_stock_value = 0
+
+        for item in data:
+            active_value = item.get('active_stock_value', 0)
+            grand_total_active_stock_value += active_value
+            row = [
+                Paragraph(str(item.get('game_name', '')), self.styles['TableCell']),
+                Paragraph(str(item.get('game_number', '')), self.styles['TableCellCenter']),
+                Paragraph(f"${item.get('game_price_per_ticket', 0):.2f}", self.styles['TableCellRight']),
+                Paragraph(str(item.get('total_books', 0)), self.styles['TableCellRight']),
+                Paragraph(str(item.get('active_books', 0)), self.styles['TableCellRight']),
+                Paragraph(str(item.get('finished_books', 0)), self.styles['TableCellRight']),
+                Paragraph(str(item.get('pending_books', 0)), self.styles['TableCellRight']),
+                Paragraph(f"${active_value:.2f}", self.styles['TableCellRight']),
+            ]
+            table_data.append(row)
+
+        # Totals row
+        totals_row = [Paragraph("<b>Grand Total Active Stock Value:</b>", self.styles['SummaryTotal'])] + [''] * (len(column_headers) - 2) + [
+            Paragraph(f"<b>${grand_total_active_stock_value:.2f}</b>", self.styles['SummaryTotal'])
+        ]
+        table_data.append(totals_row)
+
+        if not column_widths:
+            page_width, _ = self.page_size; available_width = page_width - 1.5 * inch
+            num_cols = len(column_headers); default_col_width = available_width / num_cols if num_cols > 0 else 1*inch
+            column_widths = [default_col_width] * num_cols
+
+        table = Table(table_data, colWidths=column_widths, repeatRows=1)
+        style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.cornflowerblue), ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey), ('LINEBELOW', (0, 0), (-1, 0), 1, colors.darkblue),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.whitesmoke, colors.lightgrey]),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.lightsteelblue),
+            ('LINEABOVE', (0, -1), (-1, -1), 1, colors.darkblue),
+            ('SPAN', (0, -1), (len(column_headers) - 2, -1)), # Span for "Grand Total" text
+            ('ALIGN', (len(column_headers)-1, -1), (len(column_headers)-1, -1), 'RIGHT') # Align total value
+        ])
+        numeric_right_cols = [2, 3, 4, 5, 6, 7] # Tkt Price, Counts, Value
+        center_cols = [1] # Game No
+        for idx in numeric_right_cols: style.add('ALIGN', (idx, 1), (idx, -2), 'RIGHT')
+        for idx in center_cols: style.add('ALIGN', (idx, 1), (idx, -2), 'CENTER')
+        table.setStyle(style)
+        self.story.append(KeepTogether(table))

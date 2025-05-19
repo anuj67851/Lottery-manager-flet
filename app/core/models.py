@@ -11,7 +11,7 @@ from sqlalchemy import String, Integer, Column, ForeignKey, Boolean, DateTime, U
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
-from app.constants import REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER
+from app.constants import REVERSE_TICKET_ORDER
 
 Base = declarative_base()
 
@@ -137,6 +137,39 @@ class Book(Base):
         if not self.finish_date: # Only set finish_date if not already finished
             self.finish_date = datetime.datetime.now()
 
+    @property
+    def remaining_tickets(self) -> int:
+        """Calculates the number of tickets remaining in the book."""
+        if not self.game or self.game.total_tickets == 0:
+            return 0
+
+        if self.ticket_order == REVERSE_TICKET_ORDER:
+            # current_ticket_number is the index of the highest ticket still available.
+            # If -1, all sold (ticket 0 was last one).
+            if self.current_ticket_number == -1:
+                return 0
+            else:
+                # Tickets from current_ticket_number down to 0 are available.
+                # e.g., if total=100, initial current=99. If current=99, tickets 0-99 available (100 tickets).
+                # If current=0, ticket 0 is available (1 ticket).
+                return self.current_ticket_number + 1
+        else: # FORWARD_TICKET_ORDER
+            # current_ticket_number is the index of the next ticket to be sold.
+            # If total_tickets, all sold (ticket N-1 was last one).
+            if self.current_ticket_number == self.game.total_tickets:
+                return 0
+            else:
+                # Tickets from current_ticket_number up to total_tickets-1 are available.
+                # e.g., if total=100, initial current=0. Tickets 0 to 99 are available.
+                # Number of tickets = total_tickets - current_ticket_number.
+                return self.game.total_tickets - self.current_ticket_number
+
+    @property
+    def remaining_value(self) -> int:
+        """Calculates the monetary value of the remaining tickets in the book."""
+        if not self.game:
+            return 0
+        return self.remaining_tickets * self.game.price
 
     def __repr__(self):
         return (f"<Book(id={self.id}, game_id={self.game_id}, book_number='{self.book_number}', "

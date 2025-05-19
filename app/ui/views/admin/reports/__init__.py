@@ -1,1 +1,4 @@
 from .sales_by_date_report_view import SalesByDateReportView
+from .book_open_report_view import BookOpenReportView
+from .game_expiry_report_view import GameExpiryReportView
+from .stock_levels_report_view import StockLevelsReportView
