@@ -250,7 +250,7 @@ class PDFGenerator:
         summary_data = [
             ["Total Tickets Sold", f"{total_tickets}"],
             ["Total Sales Amount", f"${total_sales:.2f}"],
-            ["Average Price per Ticket", f"${(total_sales/total_tickets if total_tickets else 0):.2f}"]
+            ["Total Commissions (5%)", f"${(total_sales * 0.05):.2f}"]
         ]
         summary_table = Table(summary_data, colWidths=[3*inch, 1.5*inch])
         summary_table.setStyle(TableStyle([

@@ -77,6 +77,7 @@ class SalesByDateReportView(ft.Container):
         self.error_text_widget = ft.Text(visible=False, color=ft.Colors.RED_700, weight=ft.FontWeight.BOLD)
         self.summary_total_sales_widget = ft.Text("Total Sales: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
         self.summary_total_tickets_widget = ft.Text("Total Tickets: 0", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
+        self.summary_total_commissions_widget = ft.Text("Total Commissions: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
 
         column_definitions: List[Dict[str, Any]] = [
             {"key": "date", "label": "Date/Time", "sortable": True,
@@ -258,10 +259,13 @@ class SalesByDateReportView(ft.Container):
     def _update_summary_totals(self):
         total_sales = sum(item.get('price', 0) for item in self.report_data_cache)
         total_tickets = sum(item.get('count', 0) for item in self.report_data_cache)
+        total_commissions = total_sales * 0.05
         self.summary_total_sales_widget.value = f"Total Sales: ${total_sales:.2f}"
         self.summary_total_tickets_widget.value = f"Total Tickets: {total_tickets}"
+        self.summary_total_commissions_widget.value = f"Total Commissions (5%): ${total_commissions:.2f}"
         if self.summary_total_sales_widget.page: self.summary_total_sales_widget.update()
         if self.summary_total_tickets_widget.page: self.summary_total_tickets_widget.update()
+        if self.summary_total_commissions_widget.page: self.summary_total_commissions_widget.update()
 
     def _export_report_to_pdf(self, e: ft.ControlEvent):
         if not self.report_data_cache:
@@ -329,7 +333,7 @@ class SalesByDateReportView(ft.Container):
         )
 
         summary_row = ft.Row(
-            [self.summary_total_tickets_widget, ft.Container(width=20), self.summary_total_sales_widget],
+            [self.summary_total_tickets_widget, ft.Container(width=20), self.summary_total_sales_widget, ft.Container(width=20), self.summary_total_commissions_widget],
             alignment=ft.MainAxisAlignment.END, spacing=20
         )
 
