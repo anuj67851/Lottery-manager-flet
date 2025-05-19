@@ -11,9 +11,6 @@ from app.utils.pdf_generator import PDFGenerator
 from app.config import DB_BASE_DIR # For storing reports
 from app.core.models import Game # For type hinting
 
-REPORTS_DIR = DB_BASE_DIR.joinpath("generated_reports")
-os.makedirs(REPORTS_DIR, exist_ok=True) # Ensure reports directory exists
-
 class ReportService:
     def get_sales_report_data(
             self,
