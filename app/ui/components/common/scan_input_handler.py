@@ -13,7 +13,7 @@ class ScanInputHandler:
             require_ticket: bool = False,
             auto_clear_on_complete: bool = True,
             auto_focus_on_complete: bool = True,
-            debounce_ms: int = 100, # Debounce time in milliseconds (tune this value)
+            debounce_ms: int = 200, # Debounce time in milliseconds (tune this value)
     ):
         self.scan_text_field = scan_text_field
         self.on_scan_complete = on_scan_complete
