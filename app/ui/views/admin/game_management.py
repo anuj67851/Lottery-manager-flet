@@ -156,22 +156,6 @@ class GameManagementView(ft.Container):
 
 
     def _handle_add_game_click(self, e):
-        game_name_field = ft.TextField(label="Game Name", autofocus=True, border_radius=8)
-        price_field = NumberDecimalField(
-            label="Price (e.g., $1.00)", hint_text="e.g., 1.00 or 0.50",
-            is_money_field=True, currency_symbol="$", is_integer_only=True, border_radius=8,
-        )
-        total_tickets_field = NumberDecimalField(label="Total Tickets", is_integer_only=True, border_radius=8, hint_text="e.g., 150")
-        ticket_order_options = [ft.dropdown.Option(order, order.capitalize()) for order in [REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER]]
-        ticket_order_dropdown = ft.Dropdown(label="Ticket Order", options=ticket_order_options, value=REVERSE_TICKET_ORDER, border_radius=8)
-        game_number_field = NumberDecimalField(label="Game No.", is_integer_only=True, border_radius=8, hint_text="e.g., 453")
-        error_text_add = ft.Text(visible=False, color=ft.Colors.RED_700)
-
-        form_column = ft.Column(
-            [game_name_field, price_field, total_tickets_field, ticket_order_dropdown, game_number_field, error_text_add],
-            tight=True, spacing=15, scroll=ft.ScrollMode.AUTO,
-        )
-
         def _save_new_game_handler(ev):
             error_text_add.value = ""
             error_text_add.visible = False
@@ -203,6 +187,22 @@ class GameManagementView(ft.Container):
                 error_text_add.visible = True
 
             if self.page: self.page.update()
+
+        game_name_field = ft.TextField(label="Game Name", autofocus=True, border_radius=8)
+        price_field = NumberDecimalField(
+            label="Price (e.g., $1.00)", hint_text="e.g., 1.00 or 0.50",
+            is_money_field=True, currency_symbol="$", is_integer_only=True, border_radius=8,
+        )
+        total_tickets_field = NumberDecimalField(label="Total Tickets", is_integer_only=True, border_radius=8, hint_text="e.g., 150")
+        ticket_order_options = [ft.dropdown.Option(order, order.capitalize()) for order in [REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER]]
+        ticket_order_dropdown = ft.Dropdown(label="Ticket Order", options=ticket_order_options, value=REVERSE_TICKET_ORDER, border_radius=8)
+        game_number_field = NumberDecimalField(label="Game No.", is_integer_only=True, border_radius=8, hint_text="e.g., 453", on_submit=_save_new_game_handler)
+        error_text_add = ft.Text(visible=False, color=ft.Colors.RED_700)
+
+        form_column = ft.Column(
+            [game_name_field, price_field, total_tickets_field, game_number_field, ticket_order_dropdown, error_text_add],
+            tight=True, spacing=15, scroll=ft.ScrollMode.AUTO,
+        )
 
         add_game_dialog = create_form_dialog(
             page=self.page,
