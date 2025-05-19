@@ -113,7 +113,7 @@ class SalesByDateReportView(ft.Container):
         )
 
         self.page.appbar = create_appbar(
-            page=self.page, router=self.router, title_text="Sales by Date Report",
+            page=self.page, router=self.router, title_text=f"{self.current_user.role.capitalize()} > Sales by Date Report",
             current_user=self.current_user, license_status=self.license_status,
             leading_widget=ft.IconButton(ft.Icons.ARROW_BACK_IOS_NEW_ROUNDED, tooltip="Go Back", icon_color=ft.Colors.WHITE, on_click=self._go_back)
         )
