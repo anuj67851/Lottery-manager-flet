@@ -173,6 +173,7 @@ class BooksTable(PaginatedDataTable[Book]):
             return
 
         book_number_field = ft.TextField(label="Book Number (7 digits)", value=book.book_number, border_radius=8, max_length=7)
+        current_ticket_field = ft.TextField(label="Ticket Number (3 digits)", value=book.current_ticket_number, border_radius=8, max_length=3)
         ticket_order_options = [ft.dropdown.Option(order, order.capitalize()) for order in [REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER]]
         ticket_order_dropdown = ft.Dropdown(
             label="Ticket Order", options=ticket_order_options, value=book.ticket_order,
@@ -184,7 +185,7 @@ class BooksTable(PaginatedDataTable[Book]):
             italic=True, size=11, color=ft.Colors.ORANGE_ACCENT_700, visible=has_sales
         )
 
-        controls = [book_number_field, restriction_info_text, ticket_order_dropdown, error_text_edit]
+        controls = [book_number_field, current_ticket_field, restriction_info_text, ticket_order_dropdown, error_text_edit]
 
         if book.game:
             game_number_field = ft.Text(f"Game Number : {book.game.game_number}", size=20, weight=ft.FontWeight.W_500)
@@ -202,14 +203,17 @@ class BooksTable(PaginatedDataTable[Book]):
             error_text_edit.value = ""; error_text_edit.visible = False
 
             new_book_num = book_number_field.value.strip() if book_number_field.value else None
+            new_ticket_num = current_ticket_field.value.strip() if current_ticket_field.value else None
             new_order = ticket_order_dropdown.value if not ticket_order_dropdown.disabled else None
 
             try:
                 if new_book_num and (not new_book_num.isdigit() or len(new_book_num) != 7):
                     raise ValidationError("Book Number must be 7 digits.")
+                if new_ticket_num and (not new_ticket_num.isdigit() or len(new_ticket_num) != 3):
+                    raise ValidationError("Ticket Number must be 3 digits.")
 
                 with get_db_session() as db:
-                    self.book_service.edit_book(db, self.current_action_book.id, new_book_num, new_order)
+                    self.book_service.edit_book(db, self.current_action_book.id, new_book_num, new_ticket_num, new_order)
                 self.close_dialog_and_refresh(self.page.dialog, f"Book {new_book_num or self.current_action_book.book_number} updated.") # type: ignore
             except (ValidationError, DatabaseError, BookNotFoundError) as ex:
                 error_text_edit.value = str(ex.message if hasattr(ex, 'message') else ex)

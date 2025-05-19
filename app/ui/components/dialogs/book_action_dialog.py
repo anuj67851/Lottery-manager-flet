@@ -238,7 +238,7 @@ class BookActionDialog(ft.AlertDialog):
         self._temp_action_items_list = [item for item in self._temp_action_items_list if item.unique_key != item_to_remove.unique_key]
         self._update_dialog_table_and_counts()
 
-    def _add_item_to_action_list(self, game_no_str: str, book_no_str: str, ticket_no_str: Optional[str] = None):
+    def _add_item_to_action_list(self, game_no_str: str, book_no_str: str, ticket_no_str: Optional[str] = None, method_input: str = "scan",):
         self._clear_dialog_error()
         game_model: Optional[GameModel] = None
         book_model: Optional[BookModel] = None # To store fetched book instance
@@ -316,7 +316,12 @@ class BookActionDialog(ft.AlertDialog):
                 self.manual_ticket_no_field.value = ""
                 if self.manual_ticket_no_field.page: self.manual_ticket_no_field.update()
 
-            if self.scan_input_handler: self.scan_input_handler.focus_input()
+            if method_input == "scan" and self.scan_input_handler:
+                self.scan_input_handler.focus_input()
+            elif method_input == "manual" and self.manual_game_no_field:
+                self.manual_game_no_field.focus()
+            else:
+                self.scan_input_handler.focus_input() if self.scan_input_handler else None
 
         except (GameNotFoundError, BookNotFoundError, ValidationError, DatabaseError) as e:
             self._show_dialog_error(str(e.message if hasattr(e, 'message') else e))
@@ -330,7 +335,7 @@ class BookActionDialog(ft.AlertDialog):
         game_no = parsed_data.get('game_no', '')
         book_no = parsed_data.get('book_no', '')
         ticket_no = parsed_data.get('ticket_no') if self.require_ticket_scan else None
-        self._add_item_to_action_list(game_no, book_no, ticket_no)
+        self._add_item_to_action_list(game_no, book_no, ticket_no, method_input="scan")
 
     def _handle_manual_add_click(self, e: ft.ControlEvent):
         game_no_str = self.manual_game_no_field.get_value_as_str()
@@ -339,7 +344,7 @@ class BookActionDialog(ft.AlertDialog):
         if self.require_ticket_scan and self.manual_ticket_no_field:
             ticket_no_str = self.manual_ticket_no_field.value.strip() if self.manual_ticket_no_field.value else ""
 
-        self._add_item_to_action_list(game_no_str, book_no_str, ticket_no_str)
+        self._add_item_to_action_list(game_no_str, book_no_str, ticket_no_str, method_input="manual")
 
     def _handle_confirm_click(self, e: ft.ControlEvent):
         self._clear_dialog_error()

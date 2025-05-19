@@ -98,7 +98,7 @@ class BookService:
         return book
 
 
-    def edit_book(self, db: Session, book_id: int, new_book_number_str: Optional[str] = None, new_ticket_order: Optional[str] = None) -> Book:
+    def edit_book(self, db: Session, book_id: int, new_book_number_str: Optional[str] = None, new_ticket_number_str: Optional[str] = None,new_ticket_order: Optional[str] = None) -> Book:
         book = self.get_book_by_id(db, book_id)
         updates: Dict[str, Any] = {}
 
@@ -111,6 +111,18 @@ class BookService:
                 if existing_with_new_num and existing_with_new_num.id != book_id:
                     raise DatabaseError(f"Book number '{new_book_number_str}' already exists for this game.")
                 updates["book_number"] = new_book_number_str
+
+        if new_ticket_number_str is not None:
+            if not (new_ticket_number_str.isdigit() and len(new_ticket_number_str) == 3):
+                raise ValidationError("New ticket number must be a 3-digit string of numbers.")
+            if new_ticket_number_str != book.current_ticket_number:
+                # Check for invalid ticket numbers
+                new_ticket_number = int(new_ticket_number_str)
+                if new_ticket_number >= book.game.total_tickets:
+                    raise ValidationError(f"New ticket number '{new_ticket_number_str}' is greater than the maximum allowed ticket number for this game ({book.game.total_tickets - 1}).")
+                if new_ticket_number < 0:
+                    raise ValidationError(f"New ticket number '{new_ticket_number_str}' is less than the minimum ticket number for this game (0).")
+                updates["current_ticket_number"] = new_ticket_number_str
 
         if new_ticket_order is not None and new_ticket_order in [REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER]:
             if new_ticket_order != book.ticket_order:

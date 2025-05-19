@@ -58,6 +58,13 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             heading_row_height=heading_row_height,
             data_row_max_height=data_row_max_height,
         )
+        self.datatable.expand = False
+        scrollable_table_row = ft.Row(
+            [self.datatable],
+            scroll=ft.ScrollMode.ADAPTIVE, # Allows horizontal scrolling for the DataTable
+            expand=True,
+        )
+
         self._initialize_columns()
 
         self.prev_button = ft.IconButton(
@@ -81,7 +88,7 @@ class PaginatedDataTable(ft.Container, Generic[T]):
 
         table_with_pagination_column = ft.Column(
             [
-                ft.Container(content=self.datatable, expand=True, padding=ft.padding.only(bottom=10)),
+                ft.Container(content=scrollable_table_row, expand=True, padding=ft.padding.only(bottom=10)), # New
                 pagination_controls_row
             ],
             expand=True, spacing=5
