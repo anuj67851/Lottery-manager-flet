@@ -128,10 +128,7 @@ class SalesEntryView(ft.Container):
         if self.page and self.page.controls: self.page.update() # Ensure UI reflects changes
 
         # Focus logic: if item processed, focus its text field; otherwise, focus scanner.
-        if item_data_processed and item_data_processed.ui_new_ticket_no_ref:
-            if item_data_processed.ui_new_ticket_no_ref.page:
-                item_data_processed.ui_new_ticket_no_ref.focus()
-        elif self.scan_input_handler:
+        if self.scan_input_handler:
             self.scan_input_handler.focus_input()
 
 
@@ -175,7 +172,7 @@ class SalesEntryView(ft.Container):
         dialog_content_column = ft.Column(
             [
                 ft.Text("The following books have no new ticket number entered:", weight=ft.FontWeight.BOLD),
-                ft.Container(ft.Column(controls=[ft.Text(book_details_str, selectable=True)], scroll=ft.ScrollMode.ADAPTIVE), height=min(150, len(items_to_confirm)*25), padding=5),
+                ft.Container(ft.Column(controls=[ft.Text(book_details_str, selectable=True)], scroll=ft.ScrollMode.ADAPTIVE), height=min(400, len(items_to_confirm)*25), padding=5),
                 ft.Divider(height=10), ft.Text("Do you want to mark them as ALL TICKETS SOLD?"),
                 ft.Text("Choosing 'No' will skip these specific books from this submission if their ticket number remains empty.", size=11, italic=True, color=ft.Colors.OUTLINE)
             ], tight=True, spacing=10, width=450
@@ -218,7 +215,7 @@ class SalesEntryView(ft.Container):
             ft.Text(f"Total Sales Amount in this submission: ${total_sales_val}"),
             ft.Divider(height=10),
             ft.Text("This action CANNOT be easily reverted. Proceed?", weight=ft.FontWeight.BOLD)
-        ])
+        ], height=130)
 
         final_confirm_dialog = create_confirmation_dialog(
             title_text="Confirm Sales Submission",
@@ -226,7 +223,7 @@ class SalesEntryView(ft.Container):
             on_confirm=self._execute_database_submission,
             on_cancel=lambda ev: self.page.close(self.page.dialog),
             confirm_button_text="Save Sales",
-            confirm_button_style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_ACCENT_700, color=ft.Colors.WHITE)
+            confirm_button_style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_ACCENT_700, color=ft.Colors.WHITE),
         )
         self.page.dialog = final_confirm_dialog
         self.page.open(final_confirm_dialog)

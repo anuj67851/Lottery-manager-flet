@@ -114,9 +114,6 @@ class BookManagementView(ft.Container):
         success_count = len(created_books)
         failure_count = len(service_errors)
 
-        # After batch processing, refresh the main books table in this view
-        self.books_table_component.refresh_data_and_ui(self.search_bar.get_value())
-
         return success_count, failure_count, service_errors
 
 
@@ -130,6 +127,7 @@ class BookManagementView(ft.Container):
             on_confirm_batch_callback=self._process_add_new_books_batch,
             game_service=self.game_service,
             book_service=self.book_service,
+            on_success_trigger_refresh=lambda: self.books_table_component.refresh_data_and_ui(self.search_bar.get_value()),
             require_ticket_scan=False # For adding books, ticket number is not scanned
         )
         add_books_dialog.open_dialog()

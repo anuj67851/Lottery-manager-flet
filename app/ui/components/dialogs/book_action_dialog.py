@@ -99,6 +99,7 @@ class BookActionDialog(ft.AlertDialog):
             on_confirm_batch_callback: Callable[[Session, List[Dict[str, Any]], User], Tuple[int, int, List[str]]],
             game_service: GameService,
             book_service: BookService, # Added BookService
+            on_success_trigger_refresh: Optional[Callable[[], None]] = None,
             require_ticket_scan: bool = False,
             dialog_height_ratio: float = 0.85,
             dialog_width: int = 700, # Increased width slightly for better display
@@ -113,6 +114,7 @@ class BookActionDialog(ft.AlertDialog):
         self.on_confirm_batch_callback = on_confirm_batch_callback
         self.game_service = game_service
         self.book_service = book_service # Store BookService instance
+        self.on_success_trigger_refresh = on_success_trigger_refresh
         self.require_ticket_scan = require_ticket_scan
 
         self._temp_action_items_list: List[TempBookActionItem] = []
@@ -370,6 +372,8 @@ class BookActionDialog(ft.AlertDialog):
                 final_message += " (See console for details on failures)."
 
             self.page.open(ft.SnackBar(ft.Text(final_message), open=True, duration=7000 if error_messages else 4000))
+            if success_count > 0 and self.on_success_trigger_refresh:
+                self.on_success_trigger_refresh()
 
         except Exception as ex_batch:
             self._show_dialog_error(f"Error during batch processing: {ex_batch}")

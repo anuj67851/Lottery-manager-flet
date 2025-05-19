@@ -92,7 +92,7 @@ class BooksTable(PaginatedDataTable[Book]):
             toggle_button = ft.IconButton(
                 ft.Icons.TOGGLE_OFF_OUTLINED,
                 tooltip="Activate Book" if can_activate else "Cannot activate (book is finished)",
-                icon_color=ft.Colors.RED_700 if can_activate else ft.Colors.GREY_400,
+                icon_color=ft.Colors.GREEN_700 if can_activate else ft.Colors.GREY_400,
                 icon_size=18,
                 disabled=not can_activate,
                 on_click=lambda e, b=book: self._confirm_toggle_active_status(b, True) if can_activate else None
