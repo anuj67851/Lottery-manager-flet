@@ -11,7 +11,8 @@ QR_TOTAL_LENGTH = 29
 GAME_LENGTH = 3
 BOOK_LENGTH = 7
 TICKET_LENGTH = 3
-MIN_REQUIRED_SCAN_LENGTH = 13
+MIN_REQUIRED_SCAN_LENGTH = GAME_LENGTH + BOOK_LENGTH # Minimum for Game+Book
+MIN_REQUIRED_SCAN_LENGTH_WITH_TICKET = GAME_LENGTH + BOOK_LENGTH + TICKET_LENGTH
 
 # Ticket orders
 REVERSE_TICKET_ORDER = "reverse"
@@ -31,3 +32,8 @@ BOOK_MANAGEMENT_ROUTE = "book_management"
 
 # Sales Entry Route
 SALES_ENTRY_ROUTE = "sales_entry"
+
+# Book Action Dialog Types (used for configuration)
+BOOK_ACTION_ADD_NEW = "add_new"
+BOOK_ACTION_FULL_SALE = "full_sale"
+BOOK_ACTION_ACTIVATE = "activate"

@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 import datetime
 
@@ -17,36 +17,86 @@ class BookService:
             raise BookNotFoundError(f"Book with ID {book_id} not found.")
         return book
 
-    def activate_book(self, db: Session, book_id: int) -> Book:
-        book = self.get_book_by_id(db, book_id)
-        if book.is_active:
-            # Or raise ValidationError("Book is already active.")
-            return book
+    def get_book_by_game_and_book_number(self, db: Session, game_id: int, book_number_str: str) -> Optional[Book]:
+        return crud_books.get_book_by_game_and_book_number(db, game_id, book_number_str)
 
-            # Ensure the game is not expired before activating a book
-        if not book.game: # Should always have a game due to FK constraint
+
+    def activate_book(self, db: Session, book_id: int) -> Book:
+        book = self.get_book_by_id(db, book_id) # Raises BookNotFoundError
+        if book.is_active:
+            return book # Or raise ValidationError("Book is already active.")
+
+        if not book.game:
             raise DatabaseError(f"Book ID {book.id} is missing associated game data.")
         if book.game.is_expired:
             raise ValidationError(f"Cannot activate book for an expired game ('{book.game.name}').")
 
+        # Check if book is already finished
+        if book.ticket_order == REVERSE_TICKET_ORDER and book.current_ticket_number == -1:
+            raise ValidationError(f"Cannot activate book '{book.book_number}'. It is already marked as fully sold (Reverse Order).")
+        if book.ticket_order == FORWARD_TICKET_ORDER and book.game and book.current_ticket_number == book.game.total_tickets:
+            raise ValidationError(f"Cannot activate book '{book.book_number}'. It is already marked as fully sold (Forward Order).")
+
+
         book.is_active = True
         book.activate_date = datetime.datetime.now()
-        book.finish_date = None # Clear finish date if it was previously set
+        book.finish_date = None # Clear finish date if it was previously set for an inactive book
 
         # crud_books.update_book_details(db, book, {"is_active": True, "activate_date": book.activate_date, "finish_date": None})
         # The commit will be handled by the get_db_session context manager
         return book
 
+    def activate_books_batch(self, db: Session, book_ids: List[int]) -> Tuple[List[Book], List[str]]:
+        """Activates a list of books. Returns (activated_books, error_messages)."""
+        activated_books: List[Book] = []
+        errors: List[str] = []
+        for book_id in book_ids:
+            try:
+                activated_book = self.activate_book(db, book_id)
+                activated_books.append(activated_book)
+            except (BookNotFoundError, ValidationError, DatabaseError) as e:
+                errors.append(f"Book ID {book_id}: {e.message if hasattr(e, 'message') else str(e)}")
+            except Exception as e_unhandled:
+                errors.append(f"Book ID {book_id}: Unexpected error during activation - {str(e_unhandled)}")
+        return activated_books, errors
 
     def deactivate_book(self, db: Session, book_id: int) -> Book:
         book = self.get_book_by_id(db, book_id)
         if not book.is_active:
-            # Or raise ValidationError("Book is already inactive.")
-            return book
+            return book # Or raise ValidationError("Book is already inactive.")
         book.is_active = False
         book.finish_date = datetime.datetime.now()
         # crud_books.update_book_details(db, book, {"is_active": False, "finish_date": book.finish_date})
         return book
+
+    def mark_book_as_fully_sold(self, db: Session, book_id: int) -> Book:
+        """
+        Marks a book as fully sold.
+        This involves deactivating it and setting its current_ticket_number
+        to the 'sold out' state.
+        Does NOT create the SalesEntry record.
+        """
+        book = self.get_book_by_id(db, book_id) # Raises BookNotFoundError
+
+        if not book.game: # Should have a game
+            raise DatabaseError(f"Book ID {book.id} cannot be marked sold: missing associated game data.")
+
+        # Idempotency: if already marked as fully sold (correct current_ticket_number and inactive), just return it.
+        is_already_fully_sold_state = False
+        if book.ticket_order == REVERSE_TICKET_ORDER and book.current_ticket_number == -1:
+            is_already_fully_sold_state = True
+        elif book.ticket_order == FORWARD_TICKET_ORDER and book.current_ticket_number == book.game.total_tickets:
+            is_already_fully_sold_state = True
+
+        if is_already_fully_sold_state and not book.is_active:
+            return book # Already in the desired state
+
+        # Apply the "fully sold" state changes
+        book.set_as_fully_sold() # This handles current_ticket_number, is_active, and finish_date
+
+        # Commit is handled by the context manager
+        return book
+
 
     def edit_book(self, db: Session, book_id: int, new_book_number_str: Optional[str] = None, new_ticket_order: Optional[str] = None) -> Book:
         book = self.get_book_by_id(db, book_id)
@@ -70,10 +120,15 @@ class BookService:
                 # If ticket order changes, current_ticket_number must be reset
                 if not book.game: # Should not happen
                     raise DatabaseError("Book is missing game association, cannot reset ticket number.")
+
+                # Use the _initialize_current_ticket_number logic from the model by temporarily setting and calling
+                # This is a bit of a hack; ideally, the model would have a method to reset based on a new order.
+                # For now, direct manipulation:
                 if new_ticket_order == REVERSE_TICKET_ORDER:
-                    updates["current_ticket_number"] = book.game.total_tickets
-                else:
+                    updates["current_ticket_number"] = (book.game.total_tickets - 1) if book.game.total_tickets > 0 else 0
+                else:  # FORWARD_TICKET_ORDER
                     updates["current_ticket_number"] = 0
+
 
         if not updates:
             return book # No changes
@@ -89,41 +144,35 @@ class BookService:
         created_books_list: List[Book] = []
         errors_list: List[str] = []
 
-        # Game cache to avoid fetching the same game multiple times if books_data is sorted/grouped by game
         game_cache: Dict[int, Game] = {}
 
         for book_entry_data in books_data:
-            game_id = book_entry_data.get("game_id") # Expecting game_id now
+            game_id = book_entry_data.get("game_id")
             book_number_str = book_entry_data.get("book_number_str")
-            game_number_str = book_entry_data.get("game_number_str") # For error messages
+            game_number_for_error_msg = book_entry_data.get("game_number_str", "N/A") # For error messages
 
-            if game_id is None or not book_number_str: # game_id is crucial
+            if game_id is None or not book_number_str:
                 errors_list.append(f"Missing game_id or book_number for entry: {book_entry_data}")
                 continue
 
             game = game_cache.get(game_id)
             if not game:
-                game = crud_games.get_game_by_id(db, game_id) # Fetch by ID
+                game = crud_games.get_game_by_id(db, game_id)
                 if not game:
-                    errors_list.append(f"Game with ID '{game_id}' not found for book '{book_number_str}'.")
+                    errors_list.append(f"Game with ID '{game_id}' (Game No: {game_number_for_error_msg}) not found for book '{book_number_str}'.")
                     continue
                 if game.is_expired:
                     errors_list.append(f"Game '{game.name}' (ID: {game_id}) is expired. Cannot add book '{book_number_str}'.")
                     continue
                 game_cache[game_id] = game
-
             try:
-                # crud_books.create_book expects the Game object and book_number_str
                 new_book = crud_books.create_book(db, game, book_number_str)
                 created_books_list.append(new_book)
             except (DatabaseError, ValidationError) as e:
-                errors_list.append(f"Error adding book (GameNo:{game_number_str}, BookNo:{book_number_str}): {e.message if hasattr(e, 'message') else e}")
+                errors_list.append(f"Error adding book (GameNo:{game_number_for_error_msg}, BookNo:{book_number_str}): {e.message if hasattr(e, 'message') else e}")
             except Exception as e_unhandled:
-                errors_list.append(f"Unexpected error for book (GameNo:{game_number_str}, BookNo:{book_number_str}): {e_unhandled}")
-
-        # No explicit commit here; relies on the get_db_session context manager.
-        # If created_books_list is empty and errors_list is not, the calling code can decide to raise an exception.
-        return created_books_list, errors_list # Always return two lists
+                errors_list.append(f"Unexpected error for book (GameNo:{game_number_for_error_msg}, BookNo:{book_number_str}): {e_unhandled}")
+        return created_books_list, errors_list
 
     def has_book_any_sales(self, db: Session, book_id: int) -> bool:
         return crud_books.has_book_any_sales(db, book_id)

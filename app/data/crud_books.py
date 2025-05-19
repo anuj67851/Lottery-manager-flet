@@ -39,7 +39,7 @@ def create_book(db: Session, game: Game, book_number_str: str) -> Book:
     ticket_order = game.default_ticket_order
     current_ticket_number = 0
     if ticket_order == REVERSE_TICKET_ORDER:
-        current_ticket_number = game.total_tickets
+        current_ticket_number = game.total_tickets - 1
 
     new_book = Book(
         game_id=game.id,

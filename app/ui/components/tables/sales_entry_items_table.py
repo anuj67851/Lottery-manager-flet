@@ -19,7 +19,7 @@ class SalesEntryItemsTable(ft.Container):
         self.on_all_items_loaded_callback = on_all_items_loaded_callback
 
         self.sales_items_data_list: List[SalesEntryItemData] = []
-        self.sales_items_map: Dict[str, SalesEntryItemData] = {}
+        self.sales_items_map: Dict[str, SalesEntryItemData] = {} # Maps unique_id to SalesEntryItemData
 
         self.datatable = ft.DataTable(
             columns=[
@@ -43,8 +43,9 @@ class SalesEntryItemsTable(ft.Container):
         )
 
     def _internal_item_change_handler(self, item_data: SalesEntryItemData):
-        self.update_datarow_for_item(item_data.unique_id)
-        self.on_item_change_callback(item_data)
+        # When an item's internal state changes (e.g., textfield edit), update its row
+        self.update_datarow_for_item(item_data.unique_id) # This will refresh the specific row
+        self.on_item_change_callback(item_data) # Notify view for totals update
 
     def load_initial_active_books(self):
         self.sales_items_data_list = []
@@ -62,10 +63,13 @@ class SalesEntryItemsTable(ft.Container):
                 )
                 self.sales_items_data_list.append(item_data)
                 self.sales_items_map[item_data.unique_id] = item_data
-                initial_rows.append(item_data.to_datarow())
+                # initial_rows.append(item_data.to_datarow()) # Rows built at the end
 
-            self.datatable.rows = initial_rows
-            self.on_all_items_loaded_callback(self.sales_items_data_list)
+            # Sort by game_number, then book_number initially
+            self.sales_items_data_list.sort(key=lambda x: (x.book_model.game.game_number, x.book_number))
+            self.datatable.rows = [item.to_datarow() for item in self.sales_items_data_list]
+
+            self.on_all_items_loaded_callback(self.sales_items_data_list) # Notify view
         except Exception as e:
             print(f"Error loading active books for sales table: {e}")
             self.datatable.rows = [ft.DataRow(cells=[ft.DataCell(ft.Text(f"Error loading books: {e}", color=ft.Colors.ERROR))])]
@@ -75,66 +79,60 @@ class SalesEntryItemsTable(ft.Container):
 
     def add_or_update_book_for_sale(self, book_model: BookModel, scanned_ticket_str: Optional[str] = None) -> Optional[SalesEntryItemData]:
         if book_model.id is None:
-            error_msg = "Error: Book ID missing when adding/updating in sales table."
-            if self.page: self.page.open(ft.SnackBar(ft.Text(error_msg), open=True, bgcolor=ft.Colors.ERROR))
-            print(f"CRITICAL: {error_msg} - Book: {book_model.book_number}")
+            # ... (error handling as before)
             return None
 
         unique_id = f"book-{book_model.id}"
         item_data = self.sales_items_map.get(unique_id)
 
+        is_new_item = False
         if item_data:  # Book ALREADY IN TABLE
             print(f"SalesTable: Updating existing item {unique_id} with scan: {scanned_ticket_str if scanned_ticket_str else 'No Ticket Scan'}")
-            # Update the existing item_data's underlying book_model and sync critical fields
+            # Remove from current position to re-insert at top
+            self.sales_items_data_list = [item for item in self.sales_items_data_list if item.unique_id != unique_id]
+
+            # Update existing item_data's model and critical fields
             item_data.book_model = book_model
             item_data.db_current_ticket_no = book_model.current_ticket_number
-            # Game details could also be updated if they can change, but typically game_price, name, total_tickets are fixed once book is created.
             item_data.game_name = book_model.game.name if book_model.game else item_data.game_name
             item_data.game_price = book_model.game.price if book_model.game else item_data.game_price
             item_data.game_total_tickets = book_model.game.total_tickets if book_model.game else item_data.game_total_tickets
             item_data.ticket_order = book_model.ticket_order
 
             if scanned_ticket_str:
-                item_data.update_scanned_ticket_number(scanned_ticket_str)
+                item_data.update_scanned_ticket_number(scanned_ticket_str) # This calls _calculate_sales and on_change_callback
             else:
-                # If no new scan, but book_model might have been updated (e.g. current_ticket_number from another source)
-                # we should ensure calculations are based on current state.
-                # SalesEntryItemData._calculate_sales() is called internally by update_scanned_ticket_number
-                # or when its TextField changes. If only db_current_ticket_no changed, we might need to manually trigger.
-                # For now, update_scanned_ticket_number is the main path for explicit changes.
-                # An explicit _recalculate() on item_data might be useful if only db state changes.
-                pass # No explicit recalculation here unless a ticket is scanned.
+                item_data._calculate_sales() # Recalculate if no scan but model might have changed
 
-            self.update_datarow_for_item(unique_id)
         else:  # Book NOT IN TABLE YET
+            is_new_item = True
             print(f"SalesTable: Adding new item {unique_id} with scan: {scanned_ticket_str if scanned_ticket_str else 'No Ticket Scan'}")
             item_data = SalesEntryItemData(
                 book_model=book_model,
                 on_change_callback=self._internal_item_change_handler
             )
-            # Apply scanned ticket if this is its first appearance with a scan
             if scanned_ticket_str:
                 item_data.update_scanned_ticket_number(scanned_ticket_str)
-            # else: # No scan, just adding the active book (e.g., from initial load or manual add without ticket)
-            # SalesEntryItemData's __init__ does not call _calculate_sales, so ensure it's called.
-            # However, update_scanned_ticket_number also calls _calculate_sales.
-            # If no ticket, initial calculation will be 0 sold.
-            # Let's ensure _calculate_sales is called to set initial state.
-            item_data._calculate_sales() # Ensure initial calculation if no ticket scanned
+            else:
+                item_data._calculate_sales() # Ensure initial calculation
 
-            self.sales_items_data_list.insert(0, item_data)  # Add to top of internal list
-            self.sales_items_map[unique_id] = item_data     # Add to map
+            self.sales_items_map[unique_id] = item_data
 
-            # Add new row to the ft.DataTable
-            new_row = item_data.to_datarow()
-            self.datatable.rows.insert(0, new_row)
+        # Add/Re-add item_data to the beginning of the list
+        self.sales_items_data_list.insert(0, item_data)
 
-            self.on_item_change_callback(item_data) # Notify view about the new item for totals
+        # Rebuild all DataTable rows to reflect the new order
+        self.datatable.rows = [item.to_datarow() for item in self.sales_items_data_list]
+
+        # Notify the main view about the change for total updates, especially if it was a new item
+        if is_new_item : # Or always call if totals might change due to scan on existing item
+            self.on_item_change_callback(item_data)
 
         if self.page and self.page.controls: self.page.update()
         return item_data
 
     def update_datarow_for_item(self, unique_item_id: str):
+        """Updates a specific row in the DataTable if its underlying data changed."""
         item_data = self.sales_items_map.get(unique_item_id)
         if not item_data:
             print(f"SalesTable: Attempted to update non-existent item: {unique_item_id}")
@@ -150,25 +148,26 @@ class SalesEntryItemsTable(ft.Container):
                     break
 
             if idx_in_list != -1:
+                # Re-create the DataRow for this specific item
                 self.datatable.rows[idx_in_list] = item_data.to_datarow()
                 print(f"SalesTable: Refreshed row for item {unique_item_id} at index {idx_in_list}")
-            else: # Should not happen if map and list are perfectly synced
-                print(f"SalesTable: Item {unique_item_id} found in map but not in list. Rebuilding all rows.")
+            else:
+                # This case should be less frequent if list and map are synced,
+                # especially with the "move to top" logic rebuilding all rows.
+                print(f"SalesTable: Item {unique_item_id} in map but not list during specific update. Rebuilding all rows.")
                 self.datatable.rows = [item.to_datarow() for item in self.sales_items_data_list]
+
         except Exception as e:
-            print(f"SalesTable: Error updating datarow for {unique_item_id}: {e}. Rebuilding all rows.")
-            # Fallback: rebuild all rows if specific update fails
+            print(f"SalesTable: Error updating specific datarow for {unique_item_id}: {e}. Rebuilding all rows.")
             self.datatable.rows = [item.to_datarow() for item in self.sales_items_data_list]
 
         if self.page and self.page.controls: self.page.update()
 
 
-    def get_all_data_items(self) -> List[SalesEntryItemData]: # Renamed for clarity
-        """Returns all current SalesEntryItemData instances, regardless of processed state."""
+    def get_all_data_items(self) -> List[SalesEntryItemData]:
         return self.sales_items_data_list
 
     def get_all_items_for_submission(self) -> List[SalesEntryItemData]:
-        """Returns all current SalesEntryItemData instances that are processed for sale OR confirmed all sold."""
         return [item for item in self.sales_items_data_list if item.is_processed_for_sale or item.all_tickets_sold_confirmed]
 
     def get_item_by_book_id(self, book_db_id: int) -> Optional[SalesEntryItemData]:

@@ -1,9 +1,19 @@
+from typing import List, Dict, Tuple, Any
+
 import flet as ft
-from app.constants import LOGIN_ROUTE, GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE, BOOK_MANAGEMENT_ROUTE, \
-    SALES_ENTRY_ROUTE
+from sqlalchemy.orm import Session
+
+from app.constants import (
+    LOGIN_ROUTE, GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE, BOOK_MANAGEMENT_ROUTE,
+    SALES_ENTRY_ROUTE, BOOK_ACTION_FULL_SALE, BOOK_ACTION_ACTIVATE
+)
+from app.core import BookNotFoundError
 from app.core.models import User
+from app.services import BookService, SalesEntryService, GameService  # Import services
+from app.ui.components.common.appbar_factory import create_appbar
+from app.ui.components.dialogs.book_action_dialog import BookActionDialog  # New dialog
 from app.ui.components.widgets.function_button import create_nav_card_button
-from app.ui.components.common.appbar_factory import create_appbar # Import AppBar factory
+
 
 class AdminDashboardView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User, license_status: bool, **params):
@@ -13,12 +23,16 @@ class AdminDashboardView(ft.Container):
         self.current_user = current_user
         self.license_status = license_status
 
-        # Navigation parameters for child views, allowing them to return here
+        # Initialize services
+        self.book_service = BookService()
+        self.sales_entry_service = SalesEntryService()
+        self.game_service = GameService() # For BookActionDialog
+
         self.navigation_params_for_children = {
             "current_user": self.current_user,
             "license_status": self.license_status,
-            "previous_view_route": ADMIN_DASHBOARD_ROUTE, # This view's route
-            "previous_view_params": { # Params needed to reconstruct this view if returned to
+            "previous_view_route": ADMIN_DASHBOARD_ROUTE,
+            "previous_view_params": {
                 "current_user": self.current_user,
                 "license_status": self.license_status,
             },
@@ -35,7 +49,6 @@ class AdminDashboardView(ft.Container):
 
     def _create_section_quadrant(self, title: str, title_color: str,
                                  button_row_controls: list, gradient_colors: list) -> ft.Container:
-        """Helper to create a styled, scrollable container for a function section (quadrant)."""
         scrollable_content = ft.Column(
             controls=[
                 ft.Text(
@@ -50,15 +63,13 @@ class AdminDashboardView(ft.Container):
                     spacing=10,
                     alignment=ft.MainAxisAlignment.SPACE_EVENLY,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    wrap=True, # Allow buttons to wrap if quadrant is too narrow
+                    wrap=True,
                 ),
             ],
             spacing=15,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            scroll=ft.ScrollMode.ADAPTIVE, # Enable scrolling for content overflow
-            # Do not set expand=True here for scrollable_content
+            scroll=ft.ScrollMode.ADAPTIVE,
         )
-
         quadrant_container = ft.Container(
             content=scrollable_content,
             padding=15,
@@ -68,10 +79,103 @@ class AdminDashboardView(ft.Container):
                 end=ft.alignment.bottom_right,
                 colors=gradient_colors,
             ),
-            expand=True, # Quadrant container expands to fill its grid cell
-            alignment=ft.alignment.center, # Center the scrollable content within
+            expand=True,
+            alignment=ft.alignment.center,
         )
         return quadrant_container
+
+    # --- Callbacks for BookActionDialog ---
+    def _process_full_book_sale_batch(self, db: Session, items_to_process: List[Dict[str, Any]], current_user: User) -> Tuple[int, int, List[str]]:
+        success_count = 0
+        failure_count = 0
+        error_messages: List[str] = []
+
+        for item_data in items_to_process:
+            book_number = item_data['book_number_str']
+            game_number = item_data['game_number_str']
+            game_id = item_data['game_id']
+
+            try:
+                # Find the book first using game_id and book_number
+                book_model = self.book_service.get_book_by_game_and_book_number(db, game_id, book_number)
+                if not book_model:
+                    raise BookNotFoundError(f"Book {game_number}-{book_number} not found in database.")
+                if not book_model.game: # Should be loaded by get_book_by_game_and_book_number or eager loaded
+                    db.refresh(book_model, attribute_names=['game'])
+
+                # 1. Mark book as fully sold (updates book status, current_ticket_number)
+                self.book_service.mark_book_as_fully_sold(db, book_model.id)
+
+                # 2. Create a sales entry for the full book sale
+                self.sales_entry_service.create_sales_entry_for_full_book(db, book_model, current_user.id)
+
+                success_count += 1
+            except Exception as e:
+                failure_count += 1
+                err_msg = f"Book {game_number}-{book_number}: {str(e)}"
+                error_messages.append(err_msg)
+                print(f"Error processing full sale for {game_number}-{book_number}: {e}")
+
+        return success_count, failure_count, error_messages
+
+    def _process_activate_book_batch(self, db: Session, items_to_process: List[Dict[str, Any]], current_user: User) -> Tuple[int, int, List[str]]:
+        success_count = 0
+        failure_count = 0
+        error_messages: List[str] = []
+        book_ids_to_activate = []
+
+        for item_data in items_to_process:
+            book_number = item_data['book_number_str']
+            game_number = item_data['game_number_str']
+            game_id = item_data['game_id']
+            try:
+                book_model = self.book_service.get_book_by_game_and_book_number(db, game_id, book_number)
+                if not book_model:
+                    raise BookNotFoundError(f"Book {game_number}-{book_number} not found for activation.")
+                book_ids_to_activate.append(book_model.id)
+            except Exception as e:
+                failure_count +=1
+                error_messages.append(f"Book {game_number}-{book_number} pre-check failed: {e}")
+
+
+        if book_ids_to_activate:
+            activated_books, activation_errors = self.book_service.activate_books_batch(db, book_ids_to_activate)
+            success_count += len(activated_books)
+            failure_count += len(activation_errors)
+            error_messages.extend(activation_errors)
+
+        return success_count, failure_count, error_messages
+
+    # --- Dialog Openers ---
+    def _open_full_book_sale_dialog(self, e: ft.ControlEvent):
+        dialog = BookActionDialog(
+            page_ref=self.page,
+            current_user_ref=self.current_user,
+            dialog_title="Process Full Book Sale",
+            action_button_text="Mark Books as Sold",
+            action_type=BOOK_ACTION_FULL_SALE,
+            on_confirm_batch_callback=self._process_full_book_sale_batch,
+            game_service=self.game_service,
+            book_service=self.book_service,
+            require_ticket_scan=False # Only game+book needed to identify for full sale
+        )
+        dialog.open_dialog()
+
+
+    def _open_activate_book_dialog(self, e: ft.ControlEvent):
+        dialog = BookActionDialog(
+            page_ref=self.page,
+            current_user_ref=self.current_user, # Not strictly needed by activate callback but good practice
+            dialog_title="Activate Books",
+            action_button_text="Activate Selected Books",
+            action_type=BOOK_ACTION_ACTIVATE,
+            on_confirm_batch_callback=self._process_activate_book_batch,
+            game_service=self.game_service,
+            book_service=self.book_service,
+            require_ticket_scan=False
+        )
+        dialog.open_dialog()
+
 
     def _build_sales_functions_quadrant(self) -> ft.Container:
         buttons = [
@@ -80,11 +184,13 @@ class AdminDashboardView(ft.Container):
                 accent_color=ft.Colors.GREEN_700, navigate_to_route=SALES_ENTRY_ROUTE, tooltip="Add Daily Sales",
                 router_params=self.navigation_params_for_children),
             create_nav_card_button(
-                router=self.router, text="Book Sale", icon_name=ft.Icons.BOOK_ONLINE_ROUNDED,
-                accent_color=ft.Colors.BLUE_700, navigate_to_route=LOGIN_ROUTE, tooltip="Add Book Sale", disabled=True),
+                router=self.router, text="Full Book Sale", icon_name=ft.Icons.BOOK_ONLINE_ROUNDED,
+                accent_color=ft.Colors.BLUE_700, tooltip="Mark entire books as sold",
+                on_click_override=self._open_full_book_sale_dialog), # Uses on_click_override
             create_nav_card_button(
-                router=self.router, text="Open Book", icon_name=ft.Icons.AUTO_STORIES_ROUNDED,
-                accent_color=ft.Colors.TEAL_700, navigate_to_route=LOGIN_ROUTE, tooltip="Open Book", disabled=True),
+                router=self.router, text="Activate Book", icon_name=ft.Icons.AUTO_STORIES_ROUNDED,
+                accent_color=ft.Colors.TEAL_700, tooltip="Activate specific books for sales",
+                on_click_override=self._open_activate_book_dialog), # Uses on_click_override
         ]
         return self._create_section_quadrant(
             title="Sale Functions", title_color=ft.Colors.CYAN_900,
@@ -136,7 +242,7 @@ class AdminDashboardView(ft.Container):
         buttons = [
             create_nav_card_button(
                 router=self.router, text="Manage Users", icon_name=ft.Icons.MANAGE_ACCOUNTS_ROUNDED,
-                accent_color=ft.Colors.INDIGO_700, navigate_to_route=LOGIN_ROUTE, tooltip="Manage Users", disabled=True), # Assuming a route for user management
+                accent_color=ft.Colors.INDIGO_700, navigate_to_route=LOGIN_ROUTE, tooltip="Manage Users", disabled=True),
             create_nav_card_button(
                 router=self.router, text="Backup Database", icon_name=ft.Icons.SETTINGS_BACKUP_RESTORE_ROUNDED,
                 accent_color=ft.Colors.BLUE_800, navigate_to_route=LOGIN_ROUTE, tooltip="Backup Database", disabled=True),
@@ -150,31 +256,9 @@ class AdminDashboardView(ft.Container):
     def _build_body(self) -> ft.Column:
         divider_color = ft.Colors.with_opacity(0.3, ft.Colors.ON_SURFACE)
         divider_thickness = 2
-
-        # Create a responsive grid for the quadrants
-        # On larger screens, it could be 2x2. On smaller, 1xN.
-        # For simplicity with Flet's Row/Column, we'll keep 2x2 for now.
-        # Flet's ResponsiveRow could be used for more complex responsive layouts.
-
-        main_content_area = ft.GridView(
-            runs_count=2, # Try to fit 2 items per row (effectively 2 columns if items are wide enough)
-            max_extent=self.page.width / 2.2 if self.page.width else 400, # Max width of each child
-            child_aspect_ratio=1.0, # Adjust for desired height relative to width
-            spacing=10,
-            run_spacing=10,
-            expand=True, # GridView expands
-            controls=[ # Quadrants will try to fit based on max_extent
-                self._build_sales_functions_quadrant(),
-                self._build_inventory_functions_quadrant(),
-                self._build_report_functions_quadrant(),
-                self._build_management_functions_quadrant(),
-            ],
-        )
-        # Fallback to Column layout if GridView doesn't provide desired control or for simplicity:
         row1 = ft.Row(
             controls=[
                 self._build_sales_functions_quadrant(),
-                # ft.VerticalDivider(width=divider_thickness, thickness=divider_thickness, color=divider_color),
                 self._build_inventory_functions_quadrant(),
             ],
             spacing=10, expand=True, vertical_alignment=ft.CrossAxisAlignment.STRETCH
@@ -182,12 +266,10 @@ class AdminDashboardView(ft.Container):
         row2 = ft.Row(
             controls=[
                 self._build_report_functions_quadrant(),
-                # ft.VerticalDivider(width=divider_thickness, thickness=divider_thickness, color=divider_color),
                 self._build_management_functions_quadrant(),
             ],
             spacing=10, expand=True, vertical_alignment=ft.CrossAxisAlignment.STRETCH
         )
-
         return ft.Column(
             controls=[row1, ft.Divider(height=divider_thickness, thickness=divider_thickness, color=divider_color), row2],
             spacing=10, expand=True,

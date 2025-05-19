@@ -11,7 +11,7 @@ from sqlalchemy import String, Integer, Column, ForeignKey, Boolean, DateTime, U
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
-from app.constants import REVERSE_TICKET_ORDER
+from app.constants import REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER
 
 Base = declarative_base()
 
@@ -102,15 +102,40 @@ class Book(Base):
             if 'ticket_order' not in kwargs or self.ticket_order is None:
                 self.ticket_order = self.game.default_ticket_order
 
-            # --- MODIFIED INITIAL TICKET NUMBERING ---
+            if 'current_ticket_number' not in kwargs or self.current_ticket_number is None : # Ensure current_ticket_number is initialized
+                self._initialize_current_ticket_number()
+        elif 'current_ticket_number' not in kwargs or self.current_ticket_number is None: # Fallback if game not present during init
+            self.current_ticket_number = 0
+
+
+    def _initialize_current_ticket_number(self):
+        """Sets the initial current_ticket_number based on game and ticket_order."""
+        if self.game:
             if self.ticket_order == REVERSE_TICKET_ORDER:
                 # Represents the highest available ticket number (0-indexed from top)
                 self.current_ticket_number = (self.game.total_tickets - 1) if self.game.total_tickets > 0 else 0
             else:  # FORWARD_TICKET_ORDER
                 # Represents the next ticket to be sold (0-indexed)
                 self.current_ticket_number = 0
-        elif 'current_ticket_number' not in kwargs: # Fallback if game not present
+        else: # Should ideally not happen if game is always associated
             self.current_ticket_number = 0
+
+
+    def set_as_fully_sold(self):
+        """Updates current_ticket_number to reflect a fully sold book."""
+        if not self.game:
+            # This should not happen if the book is properly associated with a game.
+            # Handle error or log, as total_tickets is needed.
+            print(f"Warning: Cannot set book {self.id} as fully sold. Game association missing.")
+            return
+
+        if self.ticket_order == REVERSE_TICKET_ORDER:
+            self.current_ticket_number = -1 # State after selling ticket 0
+        else: # FORWARD_TICKET_ORDER
+            self.current_ticket_number = self.game.total_tickets # State after selling ticket N-1
+        self.is_active = False
+        if not self.finish_date: # Only set finish_date if not already finished
+            self.finish_date = datetime.datetime.now()
 
 
     def __repr__(self):
@@ -146,11 +171,17 @@ class SalesEntry(Base):
         """
         if self.book and self.book.game:
             if self.book.ticket_order == REVERSE_TICKET_ORDER:
+                # Example: start_number=99 (ticket 99 left), end_number=89 (ticket 89 left)
+                # Tickets sold: 99, 98, ..., 90. Count = 99 - 89 = 10.
+                # If end_number is -1 (all sold, ticket 0 was last), start=99, end=-1, count = 99 - (-1) = 100.
                 if self.start_number < self.end_number: # Error condition for reverse
                     self.count = 0
                 else:
                     self.count = self.start_number - self.end_number
-            else:
+            else: # FORWARD_TICKET_ORDER
+                # Example: start_number=0 (ticket 0 is next), end_number=10 (ticket 10 is next)
+                # Tickets sold: 0, 1, ..., 9. Count = 10 - 0 = 10.
+                # If end_number is total_tickets (all sold, ticket N-1 was last), start=0, end=total_tickets, count = total_tickets - 0.
                 if self.end_number < self.start_number: # Error condition for forward
                     self.count = 0
                 else:
