@@ -63,6 +63,7 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             [self.datatable],
             scroll=ft.ScrollMode.ADAPTIVE, # Allows horizontal scrolling for the DataTable
             expand=True,
+            vertical_alignment=ft.CrossAxisAlignment.START,
         )
 
         self._initialize_columns()
