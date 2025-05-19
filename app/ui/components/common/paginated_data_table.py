@@ -1,4 +1,3 @@
-# Filename: app/ui/components/common/paginated_data_table.py
 from math import ceil
 from typing import List, Callable, Optional, Any, Dict, TypeVar, Generic
 import flet as ft
