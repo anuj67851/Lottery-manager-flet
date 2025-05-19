@@ -124,9 +124,8 @@ class SalesEntryItemsTable(ft.Container):
         # Rebuild all DataTable rows to reflect the new order
         self.datatable.rows = [item.to_datarow() for item in self.sales_items_data_list]
 
-        # Notify the main view about the change for total updates, especially if it was a new item
-        if is_new_item : # Or always call if totals might change due to scan on existing item
-            self.on_item_change_callback(item_data)
+        # Always notify the main view to update totals after any add/update operation.
+        self.on_item_change_callback(item_data)
 
         if self.page and self.page.controls: self.page.update()
         return item_data
