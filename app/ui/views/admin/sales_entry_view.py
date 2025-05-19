@@ -172,7 +172,7 @@ class SalesEntryView(ft.Container):
         dialog_content_column = ft.Column(
             [
                 ft.Text("The following books have no new ticket number entered:", weight=ft.FontWeight.BOLD),
-                ft.Container(ft.Column(controls=[ft.Text(book_details_str, selectable=True)], scroll=ft.ScrollMode.ADAPTIVE), height=min(400, len(items_to_confirm)*25), padding=5),
+                ft.Container(ft.Column(controls=[ft.Text(book_details_str, selectable=True)], scroll=ft.ScrollMode.ADAPTIVE), height=min(400, len(items_to_confirm)*26), padding=5),
                 ft.Divider(height=10), ft.Text("Do you want to mark them as ALL TICKETS SOLD?"),
                 ft.Text("Choosing 'No' will skip these specific books from this submission if their ticket number remains empty.", size=11, italic=True, color=ft.Colors.OUTLINE)
             ], tight=True, spacing=10, width=450
