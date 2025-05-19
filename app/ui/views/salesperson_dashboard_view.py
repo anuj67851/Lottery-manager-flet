@@ -44,7 +44,8 @@ class SalesPersonDashboardView(ft.Container):
             page=self.page,
             user_service=self.user_service,
             initial_roles_to_display=[ADMIN_ROLE, EMPLOYEE_ROLE, SALESPERSON_ROLE], # Salesperson sees all
-            on_data_changed_callback=self._handle_table_data_change
+            on_data_changed_callback=self._handle_table_data_change,
+            current_acting_user=self.current_user,
         )
 
         self.license_status_label = ft.Text(weight=ft.FontWeight.BOLD)

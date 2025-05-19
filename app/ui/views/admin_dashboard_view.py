@@ -5,11 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.constants import (
     LOGIN_ROUTE, GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE, BOOK_MANAGEMENT_ROUTE,
-    SALES_ENTRY_ROUTE, BOOK_ACTION_FULL_SALE, BOOK_ACTION_ACTIVATE
+    SALES_ENTRY_ROUTE, BOOK_ACTION_FULL_SALE, BOOK_ACTION_ACTIVATE,
+    ADMIN_USER_MANAGEMENT_ROUTE # New import
 )
 from app.core import BookNotFoundError
 from app.core.models import User
-from app.services import BookService, SalesEntryService, GameService  # Import services
+from app.services import BookService, SalesEntryService, GameService, BackupService  # Import services
 from app.ui.components.common.appbar_factory import create_appbar
 from app.ui.components.dialogs.book_action_dialog import BookActionDialog  # New dialog
 from app.ui.components.widgets.function_button import create_nav_card_button
@@ -27,6 +28,7 @@ class AdminDashboardView(ft.Container):
         self.book_service = BookService()
         self.sales_entry_service = SalesEntryService()
         self.game_service = GameService() # For BookActionDialog
+        self.backup_service = BackupService() # For Database Backup
 
         self.navigation_params_for_children = {
             "current_user": self.current_user,
@@ -176,6 +178,29 @@ class AdminDashboardView(ft.Container):
         )
         dialog.open_dialog()
 
+    def _handle_backup_database_click(self, e: ft.ControlEvent):
+        try:
+            success, message = self.backup_service.create_database_backup()
+            if success:
+                self.page.open(ft.SnackBar(
+                    ft.Text(f"Database backup successful! Saved to: {message}"),
+                    open=True,
+                    bgcolor=ft.Colors.GREEN_ACCENT_700
+                ))
+            else:
+                self.page.open(ft.SnackBar(
+                    ft.Text(f"Database backup failed: {message}"),
+                    open=True,
+                    bgcolor=ft.Colors.RED_ACCENT_700
+                ))
+        except Exception as ex:
+            self.page.open(ft.SnackBar(
+                ft.Text(f"An unexpected error occurred during backup: {ex}"),
+                open=True,
+                bgcolor=ft.Colors.ERROR
+            ))
+        self.page.update()
+
 
     def _build_sales_functions_quadrant(self) -> ft.Container:
         buttons = [
@@ -242,10 +267,14 @@ class AdminDashboardView(ft.Container):
         buttons = [
             create_nav_card_button(
                 router=self.router, text="Manage Users", icon_name=ft.Icons.MANAGE_ACCOUNTS_ROUNDED,
-                accent_color=ft.Colors.INDIGO_700, navigate_to_route=LOGIN_ROUTE, tooltip="Manage Users", disabled=True),
+                accent_color=ft.Colors.INDIGO_700, navigate_to_route=ADMIN_USER_MANAGEMENT_ROUTE, # Updated route
+                router_params=self.navigation_params_for_children, # Pass params
+                tooltip="Manage Admin and Employee accounts", disabled=False), # Enabled
             create_nav_card_button(
                 router=self.router, text="Backup Database", icon_name=ft.Icons.SETTINGS_BACKUP_RESTORE_ROUNDED,
-                accent_color=ft.Colors.BLUE_800, navigate_to_route=LOGIN_ROUTE, tooltip="Backup Database", disabled=True),
+                accent_color=ft.Colors.BLUE_800,
+                on_click_override=self._handle_backup_database_click, # Use on_click_override
+                tooltip="Create a backup of the application database", disabled=False), # Enabled
         ]
         return self._create_section_quadrant(
             title="System Management", title_color=ft.Colors.DEEP_PURPLE_800,

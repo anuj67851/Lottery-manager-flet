@@ -33,6 +33,9 @@ BOOK_MANAGEMENT_ROUTE = "book_management"
 # Sales Entry Route
 SALES_ENTRY_ROUTE = "sales_entry"
 
+# User Management (Admin Specific)
+ADMIN_USER_MANAGEMENT_ROUTE = "admin_user_management"
+
 # Book Action Dialog Types (used for configuration)
 BOOK_ACTION_ADD_NEW = "add_new"
 BOOK_ACTION_FULL_SALE = "full_sale"

@@ -13,10 +13,12 @@ from app.ui.components.common.dialog_factory import create_confirmation_dialog, 
 class UsersTable(PaginatedDataTable[User]):
     def __init__(self, page: ft.Page, user_service: UserService,
                  initial_roles_to_display: List[str], # Used for initial data fetch query
+                 current_acting_user: User, # User performing the actions
                  on_data_changed_callback: Optional[Callable[[], None]] = None): # Renamed for clarity
 
         self.user_service = user_service
         self.initial_roles_to_display = initial_roles_to_display
+        self.current_acting_user = current_acting_user # Store the acting user
         if not self.initial_roles_to_display:
             raise WidgetError("User roles must be provided for UsersTable.")
         self._on_data_changed_callback = on_data_changed_callback
@@ -62,7 +64,16 @@ class UsersTable(PaginatedDataTable[User]):
         )
         actions_controls.append(edit_button)
 
-        if user.role != SALESPERSON_ROLE: # Salespersons cannot be deactivated via this generic table interface
+        # Restriction: Salesperson users cannot be deactivated/reactivated from this generic table
+        # Also, current acting user cannot deactivate/reactivate themselves.
+        can_toggle_active_status = True
+        if user.role == SALESPERSON_ROLE:
+            can_toggle_active_status = False
+        if self.current_acting_user and self.current_acting_user.id == user.id:
+            can_toggle_active_status = False
+
+
+        if can_toggle_active_status:
             if user.is_active:
                 deactivate_button = ft.IconButton(
                     icon=ft.Icons.DESKTOP_ACCESS_DISABLED_OUTLINED, tooltip="Deactivate user", icon_color=ft.Colors.RED_ACCENT_700,
@@ -92,36 +103,55 @@ class UsersTable(PaginatedDataTable[User]):
         self.refresh_data_and_ui() # Refresh user data
 
     # --- Edit User Dialog (Complex Form Dialog - kept mostly as is but uses factory for shell) ---
-    def _open_edit_user_dialog(self, user: User):
-        self.current_action_user = user
+    def _open_edit_user_dialog(self, user_to_edit: User): # Renamed user to user_to_edit
+        self.current_action_user = user_to_edit
+
+        # Determine if password fields should be disabled
+        disable_password_fields = False
+        password_restriction_message = ""
+        if (self.current_acting_user and self.current_acting_user.role == ADMIN_ROLE and
+                user_to_edit.role == ADMIN_ROLE and self.current_acting_user.id != user_to_edit.id):
+            disable_password_fields = True
+            password_restriction_message = "Admin cannot change another admin's password."
 
         # Form fields
-        username_field = ft.TextField(label="Username", value=user.username, disabled=True) # Username typically not editable
+        username_field = ft.TextField(label="Username", value=user_to_edit.username, disabled=True)
         role_options = [ft.dropdown.Option(role, role.capitalize()) for role in MANAGED_USER_ROLES]
         role_dropdown = ft.Dropdown(
-            label="Role", options=role_options, value=user.role,
-            disabled=(user.role == SALESPERSON_ROLE) # Salesperson role cannot be changed
+            label="Role", options=role_options, value=user_to_edit.role,
+            disabled=(user_to_edit.role == SALESPERSON_ROLE or # Salesperson role cannot be changed
+                      (self.current_acting_user and self.current_acting_user.id == user_to_edit.id and user_to_edit.role == ADMIN_ROLE)) # Admin cannot change own role if they are the one being edited
         )
-        password_field = ft.TextField(label="New Password (optional)", password=True, can_reveal_password=True)
-        confirm_password_field = ft.TextField(label="Confirm New Password", password=True, can_reveal_password=True)
+        password_field = ft.TextField(
+            label="New Password (optional)", password=True, can_reveal_password=True,
+            disabled=disable_password_fields
+        )
+        confirm_password_field = ft.TextField(
+            label="Confirm New Password", password=True, can_reveal_password=True,
+            disabled=disable_password_fields
+        )
         error_text_edit = ft.Text(visible=False, color=ft.Colors.RED_700)
 
+        form_controls = [
+            username_field, role_dropdown,
+            ft.Text("Leave password fields blank to keep current password." if not disable_password_fields else password_restriction_message,
+                    italic=True, size=12, color=ft.Colors.ORANGE_ACCENT_700 if disable_password_fields else ft.Colors.ON_SURFACE_VARIANT),
+            password_field, confirm_password_field, error_text_edit,
+        ]
+
         form_column = ft.Column(
-            [
-                username_field, role_dropdown,
-                ft.Text("Leave password fields blank to keep current password.", italic=True, size=12),
-                password_field, confirm_password_field, error_text_edit,
-            ],
-            tight=True, spacing=15, width=350, height=350, scroll=ft.ScrollMode.AUTO
+            form_controls,
+            tight=True, spacing=15, width=380, # Adjusted width slightly for message
+            scroll=ft.ScrollMode.AUTO
         )
 
         # Save handler needs access to these fields
         def _save_edits_handler(e):
-            self._save_user_edits(role_dropdown, password_field, confirm_password_field, error_text_edit)
+            self._save_user_edits(role_dropdown, password_field, confirm_password_field, error_text_edit, disable_password_fields)
 
         edit_dialog = create_form_dialog(
             page=self.page,
-            title_text=f"Edit User: {user.username}",
+            title_text=f"Edit User: {user_to_edit.username}",
             form_content_column=form_column,
             on_save_callback=_save_edits_handler,
             on_cancel_callback=lambda ev: self._close_dialog_and_refresh_users(self.page.dialog) # type: ignore
@@ -131,33 +161,35 @@ class UsersTable(PaginatedDataTable[User]):
 
 
     def _save_user_edits(self, role_field: ft.Dropdown, password_field: ft.TextField,
-                         confirm_password_field: ft.TextField, error_text_edit: ft.Text):
+                         confirm_password_field: ft.TextField, error_text_edit: ft.Text,
+                         password_fields_disabled: bool):
         if not self.current_action_user: return
 
         error_text_edit.value = ""
         error_text_edit.visible = False
-        # error_text_edit.update() # Handled by page update
 
         new_role = role_field.value
-        new_password = password_field.value if password_field.value else None # Ensure None if empty
-        confirm_new_password = confirm_password_field.value
+        new_password = None
+        if not password_fields_disabled:
+            new_password = password_field.value if password_field.value else None
+            confirm_new_password = confirm_password_field.value
 
-        try:
-            # Password validation
+            # Password validation only if not disabled and new password provided
             if new_password:
                 if len(new_password) < 6:
                     raise ValidationError("New password must be at least 6 characters.")
                 if new_password != confirm_new_password:
                     raise ValidationError("New passwords do not match.")
-
+        try:
             with get_db_session() as db:
                 self.user_service.update_user(
                     db, user_id=self.current_action_user.id, # type: ignore
                     password=new_password, role=new_role
+                    # Note: is_active is handled by separate deactivate/reactivate actions
                 )
             self._close_dialog_and_refresh_users(self.page.dialog, "User details updated successfully.") # type: ignore
         except (ValidationError, DatabaseError, UserNotFoundError) as ex:
-            error_text_edit.value = str(ex)
+            error_text_edit.value = str(ex.message if hasattr(ex, 'message') else ex)
             error_text_edit.visible = True
         except Exception as ex_general:
             error_text_edit.value = f"An unexpected error occurred: {ex_general}"
@@ -188,8 +220,8 @@ class UsersTable(PaginatedDataTable[User]):
             with get_db_session() as db:
                 self.user_service.deactivate_user(db, user_id=user_to_deactivate.id) # type: ignore
             self._close_dialog_and_refresh_users(current_dialog, f"User '{user_to_deactivate.username}' deactivated.")
-        except (UserNotFoundError, DatabaseError) as ex:
-            self.show_error_snackbar(str(ex)) # Use base class snackbar
+        except (UserNotFoundError, DatabaseError, ValidationError) as ex: # Added ValidationError
+            self.show_error_snackbar(str(ex.message if hasattr(ex, 'message') else ex))
             self._close_dialog_and_refresh_users(current_dialog)
         except Exception as ex_general:
             self.show_error_snackbar(f"An unexpected error: {ex_general}")
@@ -218,8 +250,8 @@ class UsersTable(PaginatedDataTable[User]):
             with get_db_session() as db:
                 self.user_service.reactivate_user(db, user_id=user_to_reactivate.id) # type: ignore
             self._close_dialog_and_refresh_users(current_dialog, f"User '{user_to_reactivate.username}' reactivated.")
-        except (UserNotFoundError, DatabaseError) as ex:
-            self.show_error_snackbar(str(ex))
+        except (UserNotFoundError, DatabaseError, ValidationError) as ex: # Added ValidationError
+            self.show_error_snackbar(str(ex.message if hasattr(ex, 'message') else ex))
             self._close_dialog_and_refresh_users(current_dialog)
         except Exception as ex_general:
             self.show_error_snackbar(f"An unexpected error: {ex_general}")
