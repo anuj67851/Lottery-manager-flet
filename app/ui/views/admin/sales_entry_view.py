@@ -32,17 +32,18 @@ class SalesEntryView(ft.Container):
         self.shift_service = ShiftService()
 
         self.reported_online_sales_field = NumberDecimalField(
-            label="Total Online Sales ($)", is_money_field=True, currency_symbol="$",
+            label="Reported Total Online Sales - SR 50 ($)", is_money_field=True, currency_symbol="$",
             hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
         self.reported_online_payouts_field = NumberDecimalField(
-            label="Total Online Payouts ($)", is_money_field=True, currency_symbol="$",
+            label="Reported Total Online Payouts - SR 50 ($)", is_money_field=True, currency_symbol="$",
             hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
         self.reported_instant_payouts_field = NumberDecimalField(
-            label="Total Instant Payouts ($)", is_money_field=True, currency_symbol="$",
+            label="Reported Total Instant Payouts - SR 34 ($)", is_money_field=True, currency_symbol="$",
             hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=True )
+
         self.actual_cash_in_drawer_field = NumberDecimalField(
             label="Lottery Cash in Drawer ($)", is_money_field=True, currency_symbol="$",
-            hint_text="Lottery cash in drawer report", expand=True, height=50, border_radius=8, is_integer_only=False )
+            hint_text="Lottery Cash In Drawer", expand=True, height=50, border_radius=8, is_integer_only=False )
 
         self.today_date_widget = ft.Text(
             f"Date: {datetime.datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}",
@@ -245,17 +246,17 @@ class SalesEntryView(ft.Container):
 
         confirmation_content_column = ft.Column([
             ft.Text("Please confirm the values you are submitting:", weight=ft.FontWeight.BOLD), ft.Divider(),
-            ft.Text(f"Reported Total Online Sales Today: ${reported_online_sales_float:.2f}"),
-            ft.Text(f"Reported Total Online Payouts Today: ${reported_online_payouts_float:.2f}"),
-            ft.Text(f"Reported Total Instant Payouts Today: ${reported_instant_payouts_float:.2f}"),
-            ft.Text(f"Actual Cash in Drawer: ${actual_cash_in_drawer_float:.2f}", weight=ft.FontWeight.BOLD),
+            ft.Text(f"Reported Total Online Sales Today (SR 50): ${reported_online_sales_float:.2f}"),
+            ft.Text(f"Reported Total Online Payouts Today (SR 50): ${reported_online_payouts_float:.2f}"),
+            ft.Text(f"Reported Total Instant Payouts Today (SR 34): ${reported_instant_payouts_float:.2f}"),
+            ft.Text(f"Lottery cash in Drawer: ${actual_cash_in_drawer_float:.2f}", weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, size=15), # Highlight actual cash
             ft.Divider(),
             ft.Text("Instant Game Sales for this submission (from table):"),
             ft.Text(f"  Total Instant Tickets: {total_instant_tickets}"),
             ft.Text(f"  Total Instant Value: ${total_instant_value_dollars:.2f}"),
             ft.Divider(),
             ft.Text("This will finalize this set of entries. Are you sure?", weight=ft.FontWeight.BOLD)
-        ], tight=True, spacing=8, width=450, scroll=ft.ScrollMode.AUTO, height=350)
+        ], tight=True, spacing=8, width=450, scroll=ft.ScrollMode.AUTO, height=370) # Increased height for actual cash
 
         final_confirm_dialog = create_confirmation_dialog(
             title_text="Confirm Shift Submission", content_control=confirmation_content_column,
@@ -311,18 +312,24 @@ class SalesEntryView(ft.Container):
         delta_instant_payouts_dollars = submitted_shift.calculated_delta_instant_payouts / 100.0
         drawer_difference_dollars = submitted_shift.drawer_difference / 100.0
 
-        diff_text = f"${abs(drawer_difference_dollars):.2f}"
+        diff_text_val = f"${abs(drawer_difference_dollars):.2f}"
         diff_label = ""
-        diff_color = ft.Colors.BLACK # Default
-        if drawer_difference_dollars > 0:
+        diff_color = ft.Colors.BLACK
+        if drawer_difference_dollars > 0: # Positive difference means actual cash is LESS (Shortfall)
             diff_label = " (Shortfall)"
             diff_color = ft.Colors.RED_ACCENT_700
-        elif drawer_difference_dollars < 0:
+        elif drawer_difference_dollars < 0: # Negative difference means actual cash is MORE (Overage)
             diff_label = " (Overage)"
             diff_color = ft.Colors.GREEN_ACCENT_700
-        else: # Exactly 0
+        else:
             diff_label = " (Balanced)"
-            # diff_color = ft.Colors.GREEN_ACCENT_700 # Or keep black for balanced
+
+        drawer_difference_display = ft.Text(
+            f"Drawer Difference: {diff_text_val}{diff_label}",
+            color=diff_color,
+            weight=ft.FontWeight.BOLD,
+            size=16 # Slightly larger for emphasis
+        )
 
         dialog_content_list = [
             ft.Text("Shift Submission Summary:", weight=ft.FontWeight.BOLD, size=16),
@@ -330,16 +337,16 @@ class SalesEntryView(ft.Container):
             ft.Text(f"Online Sales Delta: ${delta_online_sales_dollars:.2f}"),
             ft.Text(f"Online Payout Delta: ${delta_online_payouts_dollars:.2f}"),
             ft.Text(f"Instant Payout Delta: ${delta_instant_payouts_dollars:.2f}"),
-            ft.Divider(height=5),
-            ft.Text(f"Calculated Drawer Value: ${calc_drawer_val_dollars:.2f}", weight=ft.FontWeight.BOLD),
-            ft.Text(f"Drawer Difference: {diff_text}{diff_label}", color=diff_color, weight=ft.FontWeight.BOLD, size=14),
-            ft.Divider(height=5),
+            ft.Divider(height=10, thickness=1),
+            ft.Text(f"Calculated Drawer Value: ${calc_drawer_val_dollars:.2f}", weight=ft.FontWeight.BOLD, size=14),
+            drawer_difference_display, # Use the created Text widget
+            ft.Divider(height=10, thickness=1),
         ]
 
         dialog = ft.AlertDialog(
-            modal=True, # Prevent interaction with background
+            modal=True,
             title=ft.Text("Shift Submission Successful", weight=ft.FontWeight.BOLD),
-            content=ft.Column(dialog_content_list, tight=True, spacing=8, width=350, scroll=ft.ScrollMode.AUTO),
+            content=ft.Column(dialog_content_list, tight=True, spacing=10, width=400, scroll=ft.ScrollMode.AUTO, height=300), # Adjusted width
             actions=[ ft.FilledButton("Go to Dashboard", on_click=self._go_to_dashboard, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))) ],
             actions_alignment=ft.MainAxisAlignment.END,
             shape=ft.RoundedRectangleBorder(radius=10)
@@ -365,8 +372,12 @@ class SalesEntryView(ft.Container):
             on_item_change_callback=self._update_totals_and_book_counts_properties,
             on_all_items_loaded_callback=self._handle_table_items_loaded )
 
-        reported_totals_row = ft.Row(
-            [self.reported_online_sales_field, self.reported_online_payouts_field, self.reported_instant_payouts_field, self.actual_cash_in_drawer_field],
+        reported_totals_row1 = ft.Row(
+            [self.reported_online_sales_field, self.reported_online_payouts_field],
+            spacing=10
+        )
+        reported_totals_row2 = ft.Row(
+            [self.reported_instant_payouts_field, self.actual_cash_in_drawer_field],
             spacing=10
         )
 
@@ -378,7 +389,8 @@ class SalesEntryView(ft.Container):
         top_section = ft.Column(
             [ info_row,
               ft.Text("Enter Cumulative Daily Totals from External Terminal & Actual Cash:", style=ft.TextThemeStyle.TITLE_SMALL, weight=ft.FontWeight.BOLD),
-              reported_totals_row,
+              reported_totals_row1,
+              reported_totals_row2,
               ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
               ft.Text("Scan Instant Game Tickets or Enter Next Ticket # Manually:", style=ft.TextThemeStyle.TITLE_SMALL, weight=ft.FontWeight.BOLD),
               ft.Row([self.scanner_text_field], vertical_alignment=ft.CrossAxisAlignment.CENTER), self.scan_error_text_widget
