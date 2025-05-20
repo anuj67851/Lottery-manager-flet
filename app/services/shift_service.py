@@ -2,6 +2,7 @@ import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func # Added import
 
 from app.core import BookNotFoundError, DatabaseError
 from app.core.models import ShiftSubmission, User # Assuming ShiftSubmission from models.py
@@ -31,15 +32,34 @@ class ShiftService:
         error_messages: List[str] = []
 
         try:
+            # Determine calendar_date for querying previous shifts
+            calendar_date = current_submission_datetime.date()
+
+            # Fetch sum of previous deltas for the same calendar_date to make new deltas zero
+            previous_online_sales_deltas_sum = db.query(func.sum(ShiftSubmission.calculated_delta_online_sales)).filter(
+                ShiftSubmission.calendar_date == calendar_date,
+                ShiftSubmission.submission_datetime < current_submission_datetime
+            ).scalar() or 0
+
+            previous_online_payouts_deltas_sum = db.query(func.sum(ShiftSubmission.calculated_delta_online_payouts)).filter(
+                ShiftSubmission.calendar_date == calendar_date,
+                ShiftSubmission.submission_datetime < current_submission_datetime
+            ).scalar() or 0
+
+            previous_instant_payouts_deltas_sum = db.query(func.sum(ShiftSubmission.calculated_delta_instant_payouts)).filter(
+                ShiftSubmission.calendar_date == calendar_date,
+                ShiftSubmission.submission_datetime < current_submission_datetime
+            ).scalar() or 0
+
             # 1. Create the initial ShiftSubmission for this admin action
-            # Reported online/payouts are 0, so deltas will be 0 relative to previous shifts for these categories.
+            # Pass the fetched sums as reported values. This will result in zero deltas for these attributes.
             created_shift = crud_shifts.create_shift_submission(
                 db=db,
                 user_id=admin_user_id,
                 submission_dt=current_submission_datetime,
-                reported_online_sales=0,
-                reported_online_payouts=0,
-                reported_instant_payouts=0
+                reported_online_sales=previous_online_sales_deltas_sum,
+                reported_online_payouts=previous_online_payouts_deltas_sum,
+                reported_instant_payouts=previous_instant_payouts_deltas_sum
             )
             db.add(created_shift)
             db.flush()  # Get created_shift.id
