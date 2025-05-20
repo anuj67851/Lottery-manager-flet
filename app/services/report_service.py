@@ -37,56 +37,59 @@ class ReportService:
             start_date: datetime.datetime,
             end_date: datetime.datetime,
             user_id: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, float]]: # Updated return type
         """
         Fetches shift submission summaries for reporting.
+        Returns a tuple: (list of shift data dicts, dict of aggregated totals).
         """
-        # This could directly use crud_shifts.get_shifts_by_user_and_date_range
-        # or go through a ShiftService method.
-        # For now, let's assume ShiftService is the intended interface.
-        # We'll need to instantiate or get ShiftService.
-
-        # To avoid circular dependency if ShiftService imports ReportService,
-        # it's better if ReportService doesn't directly depend on ShiftService instance,
-        # or ShiftService is passed as an argument, or we call crud_shifts directly.
-        # For simplicity now, let's imagine ShiftService is available or we call crud_shifts.
-
-        # Option 1: Instantiate ShiftService (if it's lightweight and has no complex deps)
-        from app.services.shift_service import ShiftService # Local import to break potential cycle at module level
+        from app.services.shift_service import ShiftService # Local import to break potential cycle
         shift_service = ShiftService()
-        shifts = shift_service.get_shifts_for_report(db, start_date, end_date, user_id)
+        shifts: List[ShiftSubmission] = shift_service.get_shifts_for_report(db, start_date, end_date, user_id)
 
-        # Option 2: Call crud_shifts directly (simpler if ShiftService.get_shifts_for_report is just a pass-through)
-        # shifts = crud_shifts.get_shifts_by_user_and_date_range(db, user_id, start_date, end_date)
+        report_data_list = []
+        sum_delta_online_sales = 0.0
+        sum_delta_online_payouts = 0.0
+        sum_delta_instant_payouts = 0.0
+        sum_net_drop_value = 0.0
+        # sum_total_value_instant will be derived from sales_entries_report_data for consistency with UI
 
-        report_data = []
         for shift in shifts:
             user_name = shift.user.username if shift.user else "N/A"
-            report_data.append({
+            report_data_list.append({
                 "submission_datetime": shift.submission_datetime,
                 "user_name": user_name,
                 "calendar_date": shift.calendar_date,
-                # Deltas
                 "calculated_delta_online_sales": shift.calculated_delta_online_sales,
                 "calculated_delta_online_payouts": shift.calculated_delta_online_payouts,
                 "calculated_delta_instant_payouts": shift.calculated_delta_instant_payouts,
-                # Instant Game Aggregates from this shift
                 "total_tickets_sold_instant": shift.total_tickets_sold_instant,
                 "total_value_instant": shift.total_value_instant,
-                # Net Drop
                 "net_drop_value": shift.net_drop_value,
-                # Optionally, reported cumulative values if they are useful for the report
                 "reported_total_online_sales_today": shift.reported_total_online_sales_today,
                 "reported_total_online_payouts_today": shift.reported_total_online_payouts_today,
                 "reported_total_instant_payouts_today": shift.reported_total_instant_payouts_today,
             })
-        return report_data
+            sum_delta_online_sales += shift.calculated_delta_online_sales or 0
+            sum_delta_online_payouts += shift.calculated_delta_online_payouts or 0
+            sum_delta_instant_payouts += shift.calculated_delta_instant_payouts or 0
+            sum_net_drop_value += shift.net_drop_value or 0
+
+        aggregated_totals = {
+            "sum_delta_online_sales": sum_delta_online_sales,
+            "sum_delta_online_payouts": sum_delta_online_payouts,
+            "sum_delta_instant_payouts": sum_delta_instant_payouts,
+            "sum_net_drop_value": sum_net_drop_value,
+        }
+        return report_data_list, aggregated_totals
 
 
-    def generate_sales_report_pdf_from_data( # Signature needs to change for shifts_summary_data
+    def generate_sales_report_pdf_from_data(
             self,
-            report_data: List[Dict[str, Any]],
-            shifts_summary_data: List[Dict[str, Any]], # New parameter
+            detailed_sales_entries_data: List[Dict[str, Any]], # Renamed for clarity
+            shifts_summary_data: List[Dict[str, Any]],
+            aggregated_shift_totals: Dict[str, float], # New parameter for aggregated totals
+            total_instant_sales_value: float, # Sum of detailed_sales_entries_data.sales_entry_total_value
+            total_instant_tickets_count: int, # Sum of detailed_sales_entries_data.count
             start_date: datetime.datetime,
             end_date: datetime.datetime,
             user_filter_name: str,
@@ -98,36 +101,47 @@ class ReportService:
                 display_end_date = end_date.replace(hour=23, minute=59, second=59)
 
         filter_criteria_text = (
-            f"Date Range: {start_date.strftime('%Y-%m-%d %H:%M')} to {display_end_date.strftime('%Y-%m-%d %H:%M')} | " # Show time for clarity
+            f"Date Range: {start_date.strftime('%Y-%m-%d %H:%M')} to {display_end_date.strftime('%Y-%m-%d %H:%M')} | "
             f"User Filter: {user_filter_name}"
         )
 
         try:
             pdf_gen = PDFGenerator(str(pdf_save_path), page_size=landscape(letter))
-            pdf_gen.add_title("Sales & Shift Submission Report") # Updated title
+            pdf_gen.add_title("Sales & Shift Submission Report")
             pdf_gen.add_filter_info(filter_criteria_text)
+
+            # --- Grand Totals Section ---
+            # This section will now be added near the top of the PDF.
+            # It uses the aggregated_shift_totals passed in.
+            pdf_gen.add_section_title("Overall Summary for Period")
+            pdf_gen.add_spacer(6)
+            summary_table_data = [
+                [Paragraph("<b>Metric</b>", pdf_gen.styles['TableHeader']), Paragraph("<b>Total Value</b>", pdf_gen.styles['TableHeader'])],
+                [Paragraph("Total Online Sales:", pdf_gen.styles['TableCell']), Paragraph(f"${aggregated_shift_totals.get('sum_delta_online_sales', 0):.2f}", pdf_gen.styles['TableCellRight'])],
+                [Paragraph("Total Online Payouts:", pdf_gen.styles['TableCell']), Paragraph(f"${aggregated_shift_totals.get('sum_delta_online_payouts', 0):.2f}", pdf_gen.styles['TableCellRight'])],
+                [Paragraph("Total Instant Game Sales:", pdf_gen.styles['TableCell']), Paragraph(f"${total_instant_sales_value:.2f}", pdf_gen.styles['TableCellRight'])],
+                [Paragraph("Total Instant Game Payouts:", pdf_gen.styles['TableCell']), Paragraph(f"${aggregated_shift_totals.get('sum_delta_instant_payouts', 0):.2f}", pdf_gen.styles['TableCellRight'])],
+                [Paragraph("<b>Total Net Drop (All Shifts):</b>", pdf_gen.styles['SummaryTotal']), Paragraph(f"<b>${aggregated_shift_totals.get('sum_net_drop_value', 0):.2f}</b>", pdf_gen.styles['SummaryTotal'])],
+            ]
+            page_width, _ = landscape(letter)
+            available_width_summary = page_width - 1.0 * inch
+            summary_col_widths = [available_width_summary * 0.7, available_width_summary * 0.3]
+            pdf_gen.generate_summary_table(summary_table_data, column_widths=summary_col_widths) # New method in PDFGenerator needed
+            pdf_gen.add_spacer(18)
+
 
             # --- Section 1: Shift Submission Summaries ---
             if shifts_summary_data:
-                pdf_gen.add_section_title("Shift Submission Summaries")
+                pdf_gen.add_section_title("Shift Submission Summaries (Details per Shift)")
                 pdf_gen.add_spacer(6)
                 shift_column_headers = ["Submission Time", "User", "Cal. Date", "Δ Online Sales", "Δ Online Payouts", "Δ Instant Payouts", "Instant Tkts", "Instant Value", "Net Drop"]
-                # Define column widths for shifts summary table (example)
-                page_width, _ = landscape(letter)
                 available_width_shifts = page_width - 1.0 * inch
                 shift_col_widths = [
-                    available_width_shifts * 0.15,  # Submission Time
-                    available_width_shifts * 0.10,  # User
-                    available_width_shifts * 0.10,  # Cal. Date
-                    available_width_shifts * 0.10,  # Δ Online Sales
-                    available_width_shifts * 0.12,  # Δ Online Payouts
-                    available_width_shifts * 0.13,  # Δ Instant Payouts
-                    available_width_shifts * 0.08,  # Instant Tkts
-                    available_width_shifts * 0.10,  # Instant Value
-                    available_width_shifts * 0.12,  # Net Drop
-                ]
-                # Call a new method in PDFGenerator (to be defined in section IV)
-                pdf_gen.generate_shifts_summary_table(shifts_summary_data, shift_column_headers, shift_col_widths)
+                    available_width_shifts * 0.15, available_width_shifts * 0.10, available_width_shifts * 0.10,
+                    available_width_shifts * 0.10, available_width_shifts * 0.12, available_width_shifts * 0.13,
+                    available_width_shifts * 0.08, available_width_shifts * 0.10, available_width_shifts * 0.12,
+                    ]
+                pdf_gen.generate_shifts_summary_table(shifts_summary_data, shift_column_headers, shift_col_widths) # Existing method
                 pdf_gen.add_spacer(12)
             else:
                 pdf_gen.add_section_title("Shift Submission Summaries")
@@ -135,7 +149,7 @@ class ReportService:
                 pdf_gen.add_spacer(12)
 
             # --- Section 2: Detailed Sales Entries (Instant Games) ---
-            if report_data: # This is for instant game sales entries
+            if detailed_sales_entries_data:
                 pdf_gen.add_section_title("Detailed Instant Game Sales Entries (Linked to Shifts)")
                 pdf_gen.add_spacer(6)
                 sales_column_headers = ["Date/Time", "User (via Shift)", "Game", "Book #", "Order", "Start #", "End #", "Qty", "Tkt Price", "Total"]
@@ -145,7 +159,8 @@ class ReportService:
                     available_width_shifts * 0.07, available_width_shifts * 0.06, available_width_shifts * 0.08,
                     available_width_shifts * 0.10,
                     ]
-                pdf_gen.generate_sales_report_table(report_data, sales_column_headers, sales_col_widths) # Existing method, ensure it uses the correct headers/data
+                # This call uses 'detailed_sales_entries_data' and already calculates its own totals for that table.
+                pdf_gen.generate_sales_report_table(detailed_sales_entries_data, sales_column_headers, sales_col_widths)
             else:
                 pdf_gen.add_section_title("Detailed Instant Game Sales Entries")
                 pdf_gen.story.append(Paragraph("No instant game sales entries found for this period.", pdf_gen.styles['FilterInfo']))
@@ -157,12 +172,6 @@ class ReportService:
             return False, f"Failed to generate PDF: {e}"
 
     # --- Other report methods (Book Open, Game Expiry, Stock Levels) ---
-    # These remain largely unchanged in their service layer logic for now,
-    # as the prompt focuses on sales and shift submission reporting.
-    # Their CRUD queries (crud_reports) might need minor adjustments if they
-    # previously relied on SalesEntry.user_id for any reason not covered by the prompt.
-    # For now, assuming they are okay.
-
     def get_book_open_report_data(self, db: Session, game_id_filter: Optional[int] = None) -> List[Dict[str, Any]]:
         return crud_reports.get_open_books_report_data(db, game_id_filter)
 
@@ -258,5 +267,5 @@ class ReportService:
             print(f"Error generating Stock Levels Report PDF: {e}")
             return False, f"Failed to generate PDF: {e}"
 
-    def get_all_games_for_filter(self, db: Session) -> List[Game]: # Changed to GameModel for clarity
+    def get_all_games_for_filter(self, db: Session) -> List[Game]:
         return crud_games.get_all_games_sort_by_expiration_prices(db)
