@@ -2,18 +2,19 @@ from typing import List, Dict, Tuple, Any
 
 import flet as ft
 from sqlalchemy.orm import Session
+import datetime # Required for datetime.datetime.now()
 
 from app.constants import (
     GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE, BOOK_MANAGEMENT_ROUTE,
     SALES_ENTRY_ROUTE, BOOK_ACTION_FULL_SALE, BOOK_ACTION_ACTIVATE,
     ADMIN_USER_MANAGEMENT_ROUTE, SALES_BY_DATE_REPORT_ROUTE, GAME_EXPIRY_REPORT_ROUTE,
-    BOOK_OPEN_REPORT_ROUTE, STOCK_LEVELS_REPORT_ROUTE  # New import
+    BOOK_OPEN_REPORT_ROUTE, STOCK_LEVELS_REPORT_ROUTE
 )
 from app.core import BookNotFoundError
 from app.core.models import User
-from app.services import BookService, SalesEntryService, GameService, BackupService  # Import services
+from app.services import BookService, SalesEntryService, GameService, BackupService, ShiftService
 from app.ui.components.common.appbar_factory import create_appbar
-from app.ui.components.dialogs.book_action_dialog import BookActionDialog  # New dialog
+from app.ui.components.dialogs.book_action_dialog import BookActionDialog
 from app.ui.components.widgets.function_button import create_nav_card_button
 
 
@@ -25,11 +26,11 @@ class AdminDashboardView(ft.Container):
         self.current_user = current_user
         self.license_status = license_status
 
-        # Initialize services
         self.book_service = BookService()
         self.sales_entry_service = SalesEntryService()
-        self.game_service = GameService() # For BookActionDialog
-        self.backup_service = BackupService() # For Database Backup
+        self.game_service = GameService()
+        self.backup_service = BackupService()
+        self.shift_service = ShiftService()
 
         self.navigation_params_for_children = {
             "current_user": self.current_user,
@@ -87,39 +88,48 @@ class AdminDashboardView(ft.Container):
         )
         return quadrant_container
 
-    # --- Callbacks for BookActionDialog ---
+
     def _process_full_book_sale_batch(self, db: Session, items_to_process: List[Dict[str, Any]], current_user: User) -> Tuple[int, int, List[str]]:
-        success_count = 0
-        failure_count = 0
-        error_messages: List[str] = []
+        # This method is now simpler, delegating shift creation and processing to ShiftService.
+        # The db session is managed by BookActionDialog's get_db_session context manager.
+
+        book_ids_to_sell_this_batch: List[int] = []
+        pre_check_errors: List[str] = []
 
         for item_data in items_to_process:
-            book_number = item_data['book_number_str']
-            game_number = item_data['game_number_str']
-            game_id = item_data['game_id']
+            book_id = item_data.get('book_id') # Should be populated by BookActionDialog from book_model_ref.id
+            game_number = item_data.get('game_number_str', 'N/A')
+            book_number = item_data.get('book_number_str', 'N/A')
 
-            try:
-                # Find the book first using game_id and book_number
-                book_model = self.book_service.get_book_by_game_and_book_number(db, game_id, book_number)
-                if not book_model:
-                    raise BookNotFoundError(f"Book {game_number}-{book_number} not found in database.")
-                if not book_model.game: # Should be loaded by get_book_by_game_and_book_number or eager loaded
-                    db.refresh(book_model, attribute_names=['game'])
+            if book_id is None:
+                # This implies BookActionDialog couldn't resolve the book or it's a new book (not applicable for full sale)
+                pre_check_errors.append(f"Book {game_number}-{book_number}: Could not identify existing book ID for full sale.")
+                continue
+            book_ids_to_sell_this_batch.append(book_id)
 
-                # 1. Mark book as fully sold (updates book status, current_ticket_number)
-                self.book_service.mark_book_as_fully_sold(db, book_model.id)
+        if pre_check_errors:
+            # If there are critical errors before even calling the service, return them.
+            return 0, len(items_to_process), pre_check_errors
 
-                # 2. Create a sales entry for the full book sale
-                self.sales_entry_service.create_sales_entry_for_full_book(db, book_model, current_user.id)
+        if not book_ids_to_sell_this_batch:
+            return 0, 0, ["No valid books selected for full sale."]
 
-                success_count += 1
-            except Exception as e:
-                failure_count += 1
-                err_msg = f"Book {game_number}-{book_number}: {str(e)}"
-                error_messages.append(err_msg)
-                print(f"Error processing full sale for {game_number}-{book_number}: {e}")
+        try:
+            # Call the ShiftService to handle the entire operation
+            _created_shift, successful_sales_count, error_messages = \
+                self.shift_service.create_shift_for_admin_full_book_sales(
+                    db=db,
+                    admin_user_id=current_user.id,
+                    book_ids_to_sell=book_ids_to_sell_this_batch
+                )
 
-        return success_count, failure_count, error_messages
+            failure_count = len(book_ids_to_sell_this_batch) - successful_sales_count
+            # error_messages from the service will detail per-book issues.
+
+            return successful_sales_count, failure_count, error_messages
+        except Exception as e_service_call:
+            # Catch unexpected errors from the service call itself
+            return 0, len(book_ids_to_sell_this_batch), [f"Service error processing full book sales: {str(e_service_call)}"]
 
     def _process_activate_book_batch(self, db: Session, items_to_process: List[Dict[str, Any]], current_user: User) -> Tuple[int, int, List[str]]:
         success_count = 0
@@ -140,35 +150,35 @@ class AdminDashboardView(ft.Container):
                 failure_count +=1
                 error_messages.append(f"Book {game_number}-{book_number} pre-check failed: {e}")
 
-
         if book_ids_to_activate:
             activated_books, activation_errors = self.book_service.activate_books_batch(db, book_ids_to_activate)
             success_count += len(activated_books)
             failure_count += len(activation_errors)
             error_messages.extend(activation_errors)
-
         return success_count, failure_count, error_messages
 
-    # --- Dialog Openers ---
+
     def _open_full_book_sale_dialog(self, e: ft.ControlEvent):
+        # ... (existing code for _open_full_book_sale_dialog - no direct changes needed here, callback is updated)
         dialog = BookActionDialog(
             page_ref=self.page,
             current_user_ref=self.current_user,
             dialog_title="Process Full Book Sale",
             action_button_text="Mark Books as Sold",
             action_type=BOOK_ACTION_FULL_SALE,
-            on_confirm_batch_callback=self._process_full_book_sale_batch,
+            on_confirm_batch_callback=self._process_full_book_sale_batch, # This callback is now updated
             game_service=self.game_service,
             book_service=self.book_service,
-            require_ticket_scan=False # Only game+book needed to identify for full sale
+            require_ticket_scan=False
         )
         dialog.open_dialog()
 
 
     def _open_activate_book_dialog(self, e: ft.ControlEvent):
+        # ... (existing code for _open_activate_book_dialog)
         dialog = BookActionDialog(
             page_ref=self.page,
-            current_user_ref=self.current_user, # Not strictly needed by activate callback but good practice
+            current_user_ref=self.current_user,
             dialog_title="Activate Books",
             action_button_text="Activate Selected Books",
             action_type=BOOK_ACTION_ACTIVATE,
@@ -180,6 +190,7 @@ class AdminDashboardView(ft.Container):
         dialog.open_dialog()
 
     def _handle_backup_database_click(self, e: ft.ControlEvent):
+        # ... (existing code for _handle_backup_database_click)
         try:
             success, message = self.backup_service.create_database_backup()
             if success:
@@ -212,11 +223,11 @@ class AdminDashboardView(ft.Container):
             create_nav_card_button(
                 router=self.router, text="Full Book Sale", icon_name=ft.Icons.BOOK_ONLINE_ROUNDED,
                 accent_color=ft.Colors.BLUE_700, tooltip="Mark entire books as sold",
-                on_click_override=self._open_full_book_sale_dialog), # Uses on_click_override
+                on_click_override=self._open_full_book_sale_dialog),
             create_nav_card_button(
                 router=self.router, text="Activate Book", icon_name=ft.Icons.AUTO_STORIES_ROUNDED,
                 accent_color=ft.Colors.TEAL_700, tooltip="Activate specific books for sales",
-                on_click_override=self._open_activate_book_dialog), # Uses on_click_override
+                on_click_override=self._open_activate_book_dialog),
         ]
         return self._create_section_quadrant(
             title="Sale Functions", title_color=ft.Colors.CYAN_900,
@@ -244,6 +255,7 @@ class AdminDashboardView(ft.Container):
         )
 
     def _build_report_functions_quadrant(self) -> ft.Container:
+        # ... (existing code)
         buttons = [
             create_nav_card_button(
                 router=self.router, text="Sales by Date", icon_name=ft.Icons.CALENDAR_MONTH_ROUNDED,
@@ -251,19 +263,19 @@ class AdminDashboardView(ft.Container):
                 tooltip="View sales report filtered by date and user", disabled=False,
                 router_params=self.navigation_params_for_children),
             create_nav_card_button(
-                router=self.router, text="Open Books Report", icon_name=ft.Icons.ASSESSMENT_OUTLINED, # Changed icon
-                accent_color=ft.Colors.INDIGO_400, navigate_to_route=BOOK_OPEN_REPORT_ROUTE, # Updated route
-                tooltip="Report on currently open/active books", disabled=False, # Enabled
+                router=self.router, text="Open Books Report", icon_name=ft.Icons.ASSESSMENT_OUTLINED,
+                accent_color=ft.Colors.INDIGO_400, navigate_to_route=BOOK_OPEN_REPORT_ROUTE,
+                tooltip="Report on currently open/active books", disabled=False,
                 router_params=self.navigation_params_for_children),
             create_nav_card_button(
-                router=self.router, text="Game Expiry Report", icon_name=ft.Icons.EVENT_BUSY_OUTLINED, # Changed icon
-                accent_color=ft.Colors.DEEP_ORANGE_700, navigate_to_route=GAME_EXPIRY_REPORT_ROUTE, # Updated route
-                tooltip="Report on game expiration dates", disabled=False, # Enabled
+                router=self.router, text="Game Expiry Report", icon_name=ft.Icons.EVENT_BUSY_OUTLINED,
+                accent_color=ft.Colors.DEEP_ORANGE_700, navigate_to_route=GAME_EXPIRY_REPORT_ROUTE,
+                tooltip="Report on game expiration dates", disabled=False,
                 router_params=self.navigation_params_for_children),
             create_nav_card_button(
-                router=self.router, text="Stock Levels Report", icon_name=ft.Icons.INVENTORY_2_OUTLINED, # Changed icon
-                accent_color=ft.Colors.BROWN_500, navigate_to_route=STOCK_LEVELS_REPORT_ROUTE, # Updated route
-                tooltip="Report on book stock levels per game", disabled=False, # Enabled
+                router=self.router, text="Stock Levels Report", icon_name=ft.Icons.INVENTORY_2_OUTLINED,
+                accent_color=ft.Colors.BROWN_500, navigate_to_route=STOCK_LEVELS_REPORT_ROUTE,
+                tooltip="Report on book stock levels per game", disabled=False,
                 router_params=self.navigation_params_for_children),
         ]
         return self._create_section_quadrant(
@@ -273,17 +285,18 @@ class AdminDashboardView(ft.Container):
         )
 
     def _build_management_functions_quadrant(self) -> ft.Container:
+        # ... (existing code)
         buttons = [
             create_nav_card_button(
                 router=self.router, text="Manage Users", icon_name=ft.Icons.MANAGE_ACCOUNTS_ROUNDED,
-                accent_color=ft.Colors.INDIGO_700, navigate_to_route=ADMIN_USER_MANAGEMENT_ROUTE, # Updated route
-                router_params=self.navigation_params_for_children, # Pass params
-                tooltip="Manage Admin and Employee accounts", disabled=False), # Enabled
+                accent_color=ft.Colors.INDIGO_700, navigate_to_route=ADMIN_USER_MANAGEMENT_ROUTE,
+                router_params=self.navigation_params_for_children,
+                tooltip="Manage Admin and Employee accounts", disabled=False),
             create_nav_card_button(
                 router=self.router, text="Backup Database", icon_name=ft.Icons.SETTINGS_BACKUP_RESTORE_ROUNDED,
                 accent_color=ft.Colors.BLUE_800,
-                on_click_override=self._handle_backup_database_click, # Use on_click_override
-                tooltip="Create a backup of the application database", disabled=False), # Enabled
+                on_click_override=self._handle_backup_database_click,
+                tooltip="Create a backup of the application database", disabled=False),
         ]
         return self._create_section_quadrant(
             title="System Management", title_color=ft.Colors.DEEP_PURPLE_800,
@@ -292,6 +305,7 @@ class AdminDashboardView(ft.Container):
         )
 
     def _build_body(self) -> ft.Column:
+        # ... (existing code)
         divider_color = ft.Colors.with_opacity(0.3, ft.Colors.ON_SURFACE)
         divider_thickness = 2
         row1 = ft.Row(

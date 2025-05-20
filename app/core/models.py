@@ -3,11 +3,11 @@ Defines the SQLAlchemy models for the application.
 
 This module contains the database schema definitions using SQLAlchemy's
 declarative base. It includes the `User`, `Game`, `Book`,
-and `SalesEntry` models.
+`SalesEntry`, and `ShiftSubmission` models.
 """
 import bcrypt
 import datetime
-from sqlalchemy import String, Integer, Column, ForeignKey, Boolean, DateTime, UniqueConstraint
+from sqlalchemy import String, Integer, Column, ForeignKey, Boolean, DateTime, UniqueConstraint, Date, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -36,6 +36,9 @@ class User(Base):
     created_date = Column(DateTime, nullable=False, default=datetime.datetime.now)
     is_active = Column(Boolean, nullable=False, default=True)
 
+    # Relationship to ShiftSubmission
+    shifts = relationship("ShiftSubmission", back_populates="user", order_by="ShiftSubmission.submission_datetime.desc()")
+
     def set_password(self, plain_password: str):
         password_bytes = plain_password.encode('utf-8')
         salt = bcrypt.gensalt()
@@ -50,6 +53,51 @@ class User(Base):
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role}')>"
+
+class ShiftSubmission(Base):
+    __tablename__ = "shifts" # Using "shifts" for the table name as per ForeignKey in SalesEntry
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    submission_datetime = Column(DateTime, nullable=False, default=datetime.datetime.now, index=True)
+    calendar_date = Column(Date, nullable=False, index=True) # Derived at creation
+
+    # User-Reported Cumulative Daily Values
+    reported_total_online_sales_today = Column(Integer, nullable=False)
+    reported_total_online_payouts_today = Column(Integer, nullable=False)
+    reported_total_instant_payouts_today = Column(Integer, nullable=False)
+
+    # Calculated Delta Values
+    calculated_delta_online_sales = Column(Integer, nullable=False)
+    calculated_delta_online_payouts = Column(Integer, nullable=False)
+    calculated_delta_instant_payouts = Column(Integer, nullable=False)
+
+    # Instant Sales Aggregates (from SalesEntry records linked to THIS shift)
+    total_tickets_sold_instant = Column(Integer, nullable=False, default=0)
+    total_value_instant = Column(Integer, nullable=False, default=0)
+
+    # Calculated Drop for THIS Shift Submission
+    net_drop_value = Column(Integer, nullable=False, default=0) # Initialized to 0, updated later
+
+    created_date = Column(DateTime, nullable=False, default=datetime.datetime.now)
+
+    # Relationships
+    user = relationship("User", back_populates="shifts")
+    sales_entries = relationship("SalesEntry", back_populates="shift", cascade="all, delete-orphan")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if 'submission_datetime' in kwargs and isinstance(kwargs['submission_datetime'], datetime.datetime):
+            self.calendar_date = kwargs['submission_datetime'].date()
+        elif 'submission_datetime' not in kwargs: # If default is used
+            self.calendar_date = datetime.datetime.now().date()
+
+
+    def __repr__(self):
+        return (f"<ShiftSubmission(id={self.id}, user_id={self.user_id}, "
+                f"submission_datetime='{self.submission_datetime.strftime('%Y-%m-%d %H:%M:%S') if self.submission_datetime else 'N/A'}', "
+                f"calendar_date='{self.calendar_date.strftime('%Y-%m-%d') if self.calendar_date else 'N/A'}', "
+                f"net_drop_value={self.net_drop_value})>")
 
 class Game(Base):
     """
@@ -93,7 +141,10 @@ class Book(Base):
 
     game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
     game = relationship("Game", back_populates="books")
-    sales_entries = relationship("SalesEntry", back_populates="book")
+
+    # SalesEntry relationship will be updated when SalesEntry is defined
+    # sales_entries = relationship("SalesEntry", back_populates="book") # This will be adjusted
+
     __table_args__ = (UniqueConstraint('game_id', 'book_number', name='_game_id_book_number_uc'),)
 
     def __init__(self, **kwargs):
@@ -179,6 +230,7 @@ class Book(Base):
 class SalesEntry(Base):
     """
     Represents a sales entry for a book instance.
+    Now linked to a ShiftSubmission instead of directly to a User.
     """
     __tablename__ = "sales_entries"
 
@@ -190,10 +242,12 @@ class SalesEntry(Base):
     price = Column(Integer, nullable=False) # Calculated (total for this entry)
 
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
-    book = relationship("Book", back_populates="sales_entries")
+    book = relationship("Book", back_populates="sales_entries") # Relationship in Book model updated below
 
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    user = relationship("User")
+    # Changed from user_id to shift_id
+    shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=False, index=True)
+    shift = relationship("ShiftSubmission", back_populates="sales_entries")
+
 
     def calculate_count_and_price(self):
         """
@@ -204,17 +258,11 @@ class SalesEntry(Base):
         """
         if self.book and self.book.game:
             if self.book.ticket_order == REVERSE_TICKET_ORDER:
-                # Example: start_number=99 (ticket 99 left), end_number=89 (ticket 89 left)
-                # Tickets sold: 99, 98, ..., 90. Count = 99 - 89 = 10.
-                # If end_number is -1 (all sold, ticket 0 was last), start=99, end=-1, count = 99 - (-1) = 100.
                 if self.start_number < self.end_number: # Error condition for reverse
                     self.count = 0
                 else:
                     self.count = self.start_number - self.end_number
             else: # FORWARD_TICKET_ORDER
-                # Example: start_number=0 (ticket 0 is next), end_number=10 (ticket 10 is next)
-                # Tickets sold: 0, 1, ..., 9. Count = 10 - 0 = 10.
-                # If end_number is total_tickets (all sold, ticket N-1 was last), start=0, end=total_tickets, count = total_tickets - 0.
                 if self.end_number < self.start_number: # Error condition for forward
                     self.count = 0
                 else:
@@ -226,9 +274,13 @@ class SalesEntry(Base):
             self.price = 0
 
     def __repr__(self):
-        return (f"<SalesEntry(id={self.id}, book_id={self.book_id}, user_id={self.user_id}, "
+        return (f"<SalesEntry(id={self.id}, book_id={self.book_id}, shift_id={self.shift_id}, " # Updated from user_id
                 f"start_number={self.start_number}, end_number={self.end_number}, "
                 f"date={self.date}, count={self.count}, price={self.price})>")
+
+# Update Book model to correctly back_populate sales_entries from SalesEntry model
+Book.sales_entries = relationship("SalesEntry", back_populates="book")
+
 
 class Configuration(Base):
     __tablename__ = "configurations"

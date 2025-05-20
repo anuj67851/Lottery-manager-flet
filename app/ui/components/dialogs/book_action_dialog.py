@@ -143,8 +143,8 @@ class BookActionDialog(ft.AlertDialog):
         )
 
         self.manual_game_no_field = NumberDecimalField(label="Game No.", hint_text=f"{GAME_LENGTH} digits", width=120, max_length=GAME_LENGTH, is_integer_only=True, border_radius=8, height=50)
-        self.manual_book_no_field = ft.TextField(label="Book No.", hint_text=f"{BOOK_LENGTH} digits", width=180, max_length=BOOK_LENGTH, border_radius=8, input_filter=ft.InputFilter(r"[0-9]"), height=50)
-        self.manual_ticket_no_field = ft.TextField(label="Ticket No.", hint_text=f"{TICKET_LENGTH} digits", width=120, max_length=TICKET_LENGTH, border_radius=8, input_filter=ft.InputFilter(r"[0-9]"), height=50, visible=self.require_ticket_scan)
+        self.manual_book_no_field = NumberDecimalField(label="Book No.", hint_text=f"{BOOK_LENGTH} digits", width=180, max_length=BOOK_LENGTH, border_radius=8, height=50)
+        self.manual_ticket_no_field = NumberDecimalField(label="Ticket No.", hint_text=f"{TICKET_LENGTH} digits", width=120, max_length=TICKET_LENGTH, border_radius=8, height=50, visible=self.require_ticket_scan)
         self.add_manual_button = ft.Button("Add Manual", icon=ft.Icons.ADD_TO_QUEUE_ROUNDED, on_click=self._handle_manual_add_click, height=50, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)))
 
         self.items_datatable = ft.DataTable(

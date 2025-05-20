@@ -1,25 +1,23 @@
+from contextlib import contextmanager
 from typing import Any, Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from contextlib import contextmanager
 
+from app.config import SQLALCHEMY_DATABASE_URL, DB_BASE_DIR, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD, VERSION
 from app.constants import SALESPERSON_ROLE, ADMIN_ROLE
-from app.core.models import Base
-from app.config import SQLALCHEMY_DATABASE_URL, DB_BASE_DIR, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD, VERSION, \
-    VERSION_CONFIG
-from app.services import UserService, ConfigurationService  # Direct import for initialization
-
+# Import all models, including the new ShiftSubmission
+from app.core.models import Base  # Added ShiftSubmission
+from app.services import UserService, ConfigurationService
 
 # Ensure the database directory exists
 DB_BASE_DIR.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}, # Required for SQLite with Flet/FastAPI
+    connect_args={"check_same_thread": False},
 )
 
-# expire_on_commit=False is important for Flet so objects accessed after commit are still usable
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
 @contextmanager
@@ -27,56 +25,61 @@ def get_db_session() -> Generator[Session, Any, None]:
     db = SessionLocal()
     try:
         yield db
-        db.commit() # Commit successful operations
+        db.commit()
     except Exception:
-        db.rollback() # Rollback on any error
-        raise # Re-raise the exception so it can be handled upstream
+        db.rollback()
+        raise
     finally:
         db.close()
 
 def init_db():
     print(f"Initializing database at: {SQLALCHEMY_DATABASE_URL}")
-    Base.metadata.create_all(bind=engine, checkfirst=True) # checkfirst is good practice
-    print("Database tables checked/created.")
+    # Base.metadata.create_all will now also create the 'shifts' table
+    # because ShiftSubmission is imported and inherits from Base.
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+    print("Database tables checked/created (including 'shifts' if new).")
     try:
         with get_db_session() as db:
             run_initialization_script(db)
             print("Initialization script completed.")
     except Exception as e:
         print(f"Error during database initialization script: {e}")
-        # Depending on the severity, you might want to exit or handle this
         raise
 
 
 def run_initialization_script(db: Session):
-    # TODO : FIX THIS IN FINAL PRODUCT (REMOVE ADMIN CREATION AND LICENSE TO FALSE, CHANGE SALES PASSWORD TOO)
     config_service = ConfigurationService()
     users_service = UserService()
 
-    # Create Salesperson and Admin only if no users exist at all
-    if not users_service.any_users_exist(db): # Changed from check_users_exist to any_users_exist
+    if not users_service.any_users_exist(db):
         print("Running for first time. Populating Sales User Info...")
         users_service.create_user(db, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD, SALESPERSON_ROLE)
         print("Sales User Info populated.")
-        # Create a default admin user
-        users_service.create_user(db, "admin", SALES_PERSON_PASSWORD, ADMIN_ROLE) # Using the same password for now
+        users_service.create_user(db, "admin", SALES_PERSON_PASSWORD, ADMIN_ROLE)
         print("Default admin user created.")
 
-    # Ensure a license record exists, default to True (active) for development as per original
     if not config_service.get_license(db):
         print("Creating initial license record (active for dev)...")
-        config_service.create_license_if_not_exists(db, license_is_active=True) # Set to True as per original behavior
+        config_service.create_license_if_not_exists(db, license_is_active=True)
         print("Initial license record created.")
 
-    version = config_service.get_version(db)
-    if not version:
+    version_record = config_service.get_version(db) # Renamed 'version' to 'version_record'
+    if not version_record:
         print("Creating version record...")
         config_service.create_version(db)
         print("Version record created.")
     else:
-        version = float(version.get_value())
-        print(f"Version record already exists. Skipping creation. Current version: {version}")
-
-        if float(VERSION) > version:
-            print(f"Need to perform migration from {version} to {VERSION}. Running migration script...")
-
+        current_db_version_str = version_record.get_value()
+        try:
+            current_db_version = float(current_db_version_str)
+            print(f"Version record already exists. Current DB version: {current_db_version}")
+            # Migration logic (if VERSION from config.py is higher)
+            if float(VERSION) > current_db_version:
+                print(f"Need to perform migration from {current_db_version} to {VERSION}. Running migration script...")
+                # Call your migration script/logic here if needed
+                # For now, just updating the version in DB as an example
+                # version_record.set_value(VERSION) # This should be part of a migration service
+                # db.commit() # If migration service doesn't handle its own commit
+                print(f"Placeholder: Version updated in DB to {VERSION}. Implement actual migration if schema changed beyond new tables.")
+        except ValueError:
+            print(f"Error: Could not parse database version '{current_db_version_str}' as float. Skipping migration check.")

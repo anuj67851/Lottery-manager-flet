@@ -29,6 +29,8 @@ class BooksTable(PaginatedDataTable[Book]):
              "display_formatter": lambda val, item: ft.Text(str(item.game.name) if item.game else "N/A")},
             {"key": "game_price", "label": "Price ($)", "sortable": False, "numeric": True,
              "display_formatter": lambda val, item: ft.Text(f"{item.game.price}" if item.game else "N/A")},
+            {"key": "game_total_tickets", "label": "Total Tkts (Game)", "sortable": False, "numeric": True, "searchable": False,
+             "display_formatter": lambda val, item: ft.Text(str(item.game.total_tickets) if item.game else "N/A")},
             {"key": "current_ticket_number", "label": "Curr. Ticket", "sortable": True, "numeric": True},
             {"key": "ticket_order", "label": "Order", "sortable": True, "numeric": False,
              "display_formatter": lambda val: ft.Text(str(val).capitalize())},
