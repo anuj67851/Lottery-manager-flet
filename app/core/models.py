@@ -62,22 +62,27 @@ class ShiftSubmission(Base):
     submission_datetime = Column(DateTime, nullable=False, default=datetime.datetime.now, index=True)
     calendar_date = Column(Date, nullable=False, index=True) # Derived at creation
 
-    # User-Reported Cumulative Daily Values
-    reported_total_online_sales_today = Column(Integer, nullable=False)
-    reported_total_online_payouts_today = Column(Integer, nullable=False)
-    reported_total_instant_payouts_today = Column(Integer, nullable=False)
+    # User-Reported Cumulative Daily Values (stored as cents)
+    reported_total_online_sales_today = Column(Integer, nullable=False) # cents
+    reported_total_online_payouts_today = Column(Integer, nullable=False) # cents
+    reported_total_instant_payouts_today = Column(Integer, nullable=False) # cents
 
-    # Calculated Delta Values
-    calculated_delta_online_sales = Column(Integer, nullable=False)
-    calculated_delta_online_payouts = Column(Integer, nullable=False)
-    calculated_delta_instant_payouts = Column(Integer, nullable=False)
+    # Calculated Delta Values (stored as cents)
+    calculated_delta_online_sales = Column(Integer, nullable=False) # cents
+    calculated_delta_online_payouts = Column(Integer, nullable=False) # cents
+    calculated_delta_instant_payouts = Column(Integer, nullable=False) # cents
 
     # Instant Sales Aggregates (from SalesEntry records linked to THIS shift)
-    total_tickets_sold_instant = Column(Integer, nullable=False, default=0)
-    total_value_instant = Column(Integer, nullable=False, default=0)
+    total_tickets_sold_instant = Column(Integer, nullable=False, default=0) # count
+    total_value_instant = Column(Integer, nullable=False, default=0) # DOLLARS (derived from Game.price which is dollars)
 
-    # Calculated Drop for THIS Shift Submission
-    net_drop_value = Column(Integer, nullable=False, default=0) # Initialized to 0, updated later
+    # Calculated Drawer Value for THIS Shift Submission (stored as cents)
+    calculated_drawer_value = Column(Integer, nullable=False, default=0) # cents
+
+    # Drawer Difference (stored as cents)
+    # Positive: actual cash is less than expected (shortfall)
+    # Negative: actual cash is more than expected (overage)
+    drawer_difference = Column(Integer, nullable=False, default=0) # cents
 
     created_date = Column(DateTime, nullable=False, default=datetime.datetime.now)
 
@@ -97,7 +102,7 @@ class ShiftSubmission(Base):
         return (f"<ShiftSubmission(id={self.id}, user_id={self.user_id}, "
                 f"submission_datetime='{self.submission_datetime.strftime('%Y-%m-%d %H:%M:%S') if self.submission_datetime else 'N/A'}', "
                 f"calendar_date='{self.calendar_date.strftime('%Y-%m-%d') if self.calendar_date else 'N/A'}', "
-                f"net_drop_value={self.net_drop_value})>")
+                f"calculated_drawer_value={self.calculated_drawer_value}, drawer_difference={self.drawer_difference})>")
 
 class Game(Base):
     """
@@ -107,7 +112,7 @@ class Game(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String, nullable=False, unique=False)
-    price = Column(Integer, nullable=False)
+    price = Column(Integer, nullable=False) # Assumed to be integer DOLLARS
     total_tickets = Column(Integer, nullable=False)
     is_expired = Column(Boolean, nullable=False, default=False)
     default_ticket_order = Column(String, nullable=False, default=REVERSE_TICKET_ORDER)
@@ -118,7 +123,7 @@ class Game(Base):
     game_number = Column(Integer, nullable=False, unique=True)
 
     @property
-    def calculated_total_value(self) -> int:
+    def calculated_total_value(self) -> int: # Returns DOLLARS
         return (self.price * self.total_tickets) if self.price is not None and self.total_tickets is not None else 0
 
     def __repr__(self):
@@ -216,7 +221,7 @@ class Book(Base):
                 return self.game.total_tickets - self.current_ticket_number
 
     @property
-    def remaining_value(self) -> int:
+    def remaining_value(self) -> int: # Returns DOLLARS
         """Calculates the monetary value of the remaining tickets in the book."""
         if not self.game:
             return 0
@@ -239,7 +244,7 @@ class SalesEntry(Base):
     end_number = Column(Integer, nullable=False)   # Book's current_ticket_number AFTER this sale
     date = Column(DateTime, nullable=False, default=datetime.datetime.now)
     count = Column(Integer, nullable=False) # Calculated
-    price = Column(Integer, nullable=False) # Calculated (total for this entry)
+    price = Column(Integer, nullable=False) # Calculated (total for this entry, in DOLLARS if game.price is dollars)
 
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     book = relationship("Book", back_populates="sales_entries") # Relationship in Book model updated below
@@ -255,6 +260,7 @@ class SalesEntry(Base):
         Assumes self.book and self.book.game are populated.
         `start_number` is the book's state *before* this sale.
         `end_number` is the book's state *after* this sale.
+        Price is in DOLLARS if game.price is dollars.
         """
         if self.book and self.book.game:
             if self.book.ticket_order == REVERSE_TICKET_ORDER:
@@ -268,7 +274,7 @@ class SalesEntry(Base):
                 else:
                     self.count = self.end_number - self.start_number
 
-            self.price = self.count * self.book.game.price
+            self.price = self.count * self.book.game.price # price will be in dollars if game.price is dollars
         else:
             self.count = 0
             self.price = 0

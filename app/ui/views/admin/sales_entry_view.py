@@ -3,7 +3,7 @@ import datetime
 from typing import List, Optional, Dict, Any
 
 from app.constants import ADMIN_DASHBOARD_ROUTE, MIN_REQUIRED_SCAN_LENGTH_WITH_TICKET
-from app.core.models import User
+from app.core.models import User, ShiftSubmission # Added ShiftSubmission for type hint
 from app.services import SalesEntryService, ShiftService
 from app.data.database import get_db_session
 from app.core.exceptions import ValidationError, DatabaseError, GameNotFoundError, BookNotFoundError
@@ -32,14 +32,18 @@ class SalesEntryView(ft.Container):
         self.shift_service = ShiftService()
 
         self.reported_online_sales_field = NumberDecimalField(
-            label="Reported Total Online Sales Today ($)", is_money_field=True, currency_symbol="$",
-            hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8 )
+            label="Total Online Sales ($)", is_money_field=True, currency_symbol="$",
+            hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
         self.reported_online_payouts_field = NumberDecimalField(
-            label="Reported Total Online Payouts Today ($)", is_money_field=True, currency_symbol="$",
-            hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8 )
+            label="Total Online Payouts ($)", is_money_field=True, currency_symbol="$",
+            hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
         self.reported_instant_payouts_field = NumberDecimalField(
-            label="Reported Total Instant Payouts Today ($)", is_money_field=True, currency_symbol="$",
-            hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8 )
+            label="Total Instant Payouts ($)", is_money_field=True, currency_symbol="$",
+            hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=True )
+        self.actual_cash_in_drawer_field = NumberDecimalField(
+            label="Lottery Cash in Drawer ($)", is_money_field=True, currency_symbol="$",
+            hint_text="Lottery cash in drawer report", expand=True, height=50, border_radius=8, is_integer_only=False )
+
         self.today_date_widget = ft.Text(
             f"Date: {datetime.datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}",
             style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD )
@@ -54,7 +58,7 @@ class SalesEntryView(ft.Container):
             expand=True, height=50 )
         self.scan_input_handler: Optional[ScanInputHandler] = None
         self.sales_items_table_component: Optional[SalesEntryItemsTable] = None
-        self.grand_total_sales_widget = ft.Text("Grand Total Instant Sales: $0", weight=ft.FontWeight.BOLD, size=16)
+        self.grand_total_sales_widget = ft.Text("Grand Total Instant Sales: $0.00", weight=ft.FontWeight.BOLD, size=16)
         self.total_tickets_sold_widget = ft.Text("Total Instant Tickets Sold: 0", weight=ft.FontWeight.BOLD, size=16)
         self.scan_error_text_widget = ft.Text("", color=ft.Colors.RED_ACCENT_700, visible=False, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
 
@@ -76,23 +80,26 @@ class SalesEntryView(ft.Container):
 
     def _load_initial_data_for_table(self):
         if self.sales_items_table_component:
-            self.sales_items_table_component.load_initial_active_books() # THIS IS THE FIX FOR ISSUE 1 (loading books)
-        for field in [self.reported_online_sales_field, self.reported_online_payouts_field, self.reported_instant_payouts_field]:
+            self.sales_items_table_component.load_initial_active_books()
+        for field in [self.reported_online_sales_field, self.reported_online_payouts_field, self.reported_instant_payouts_field, self.actual_cash_in_drawer_field]:
             field.value = None
             field.error_text = None
             field.last_valid_value = ""
+            if field.page: field.update()
         self._clear_scan_error_properties()
         if self.scan_input_handler and self.scan_input_handler.scan_text_field:
             self.scan_input_handler.scan_text_field.value = ""
-        # Initial focus can be tricky; Flet might manage it. If scanner needs explicit focus:
-        # if self.page.window_focused and self.scanner_text_field.page:
-        #     self.scanner_text_field.focus()
+            if self.scan_input_handler.scan_text_field.page: self.scan_input_handler.scan_text_field.update()
+        self._update_totals_and_book_counts_properties()
+        if self.page: self.page.update()
 
 
     def _clear_scan_error_properties(self):
         if self.scan_error_text_widget.visible:
             self.scan_error_text_widget.value = ""
             self.scan_error_text_widget.visible = False
+            if self.scan_error_text_widget.page: self.scan_error_text_widget.update()
+
 
     def _handle_table_items_loaded(self, all_items: List[SalesEntryItemData]):
         self._update_totals_and_book_counts_properties()
@@ -102,13 +109,21 @@ class SalesEntryView(ft.Container):
     def _update_totals_and_book_counts_properties(self, changed_item_data: Optional[SalesEntryItemData] = None):
         if not self.sales_items_table_component: return
         all_display_items = self.sales_items_table_component.get_all_data_items()
+
         grand_total_instant_sales_val = sum(item.amount_calculated for item in all_display_items if item.is_processed_for_sale or item.all_tickets_sold_confirmed)
         total_instant_tickets_sold_val = sum(item.tickets_sold_calculated for item in all_display_items if item.is_processed_for_sale or item.all_tickets_sold_confirmed)
+
         pending_entry_count = sum(1 for item in all_display_items if not item.ui_new_ticket_no_str.strip() and not item.all_tickets_sold_confirmed)
-        self.grand_total_sales_widget.value = f"Grand Total Instant Sales: ${grand_total_instant_sales_val}"
+
+        self.grand_total_sales_widget.value = f"Grand Total Instant Sales: ${grand_total_instant_sales_val:.2f}"
         self.total_tickets_sold_widget.value = f"Total Instant Tickets Sold: {total_instant_tickets_sold_val}"
         self.books_in_table_count_widget.value = f"Books In Table: {len(all_display_items)}"
         self.pending_entry_books_count_widget.value = f"Pending Entry: {pending_entry_count}"
+
+        for widget in [self.grand_total_sales_widget, self.total_tickets_sold_widget, self.books_in_table_count_widget, self.pending_entry_books_count_widget]:
+            if widget.page:
+                widget.update()
+
 
     def _on_scan_complete_callback(self, parsed_data: Dict[str, str]):
         self._clear_scan_error_properties()
@@ -116,12 +131,11 @@ class SalesEntryView(ft.Container):
         book_no_str = parsed_data.get('book_no', '')
         ticket_no_str = parsed_data.get('ticket_no', '')
         self._process_scan_and_update_table(game_no_str, book_no_str, ticket_no_str)
-        # _process_scan_and_update_table calls add_or_update_book_for_sale in table, which updates page
 
     def _on_scan_error_callback(self, error_message: str):
         self.scan_error_text_widget.value = error_message
         self.scan_error_text_widget.visible = True
-        if self.page: self.page.update()
+        if self.scan_error_text_widget.page: self.scan_error_text_widget.update()
         if self.scan_input_handler: self.scan_input_handler.focus_input()
 
     def _process_scan_and_update_table(self, game_no_str: str, book_no_str: str, ticket_no_str: str):
@@ -137,25 +151,34 @@ class SalesEntryView(ft.Container):
             self._on_scan_error_callback(str(e.message if hasattr(e, 'message') else e))
         except Exception as ex_general:
             self._on_scan_error_callback(f"Error processing scan: {type(ex_general).__name__} - {ex_general}")
+
         if self.scan_input_handler: self.scan_input_handler.focus_input()
+        if self.page: self.page.update()
+
 
     def _handle_submit_shift_sales_click(self, e):
         if not self.sales_items_table_component:
             self.page.open(ft.SnackBar(ft.Text("Sales table not ready."), open=True, bgcolor=ft.Colors.ERROR)); return
+
         try:
-            reported_online_sales = self.reported_online_sales_field.get_value_as_int()
-            if reported_online_sales is None or reported_online_sales < 0: raise ValidationError("Reported Online Sales must be a non-negative number.")
-            reported_online_payouts = self.reported_online_payouts_field.get_value_as_int()
-            if reported_online_payouts is None or reported_online_payouts < 0: raise ValidationError("Reported Online Payouts must be a non-negative number.")
-            reported_instant_payouts = self.reported_instant_payouts_field.get_value_as_int()
-            if reported_instant_payouts is None or reported_instant_payouts < 0: raise ValidationError("Reported Instant Payouts must be a non-negative number.")
+            reported_online_sales_float = self.reported_online_sales_field.get_value_as_float()
+            if reported_online_sales_float is None or reported_online_sales_float < 0: raise ValidationError("Reported Online Sales must be a non-negative number.")
+
+            reported_online_payouts_float = self.reported_online_payouts_field.get_value_as_float()
+            if reported_online_payouts_float is None or reported_online_payouts_float < 0: raise ValidationError("Reported Online Payouts must be a non-negative number.")
+
+            reported_instant_payouts_float = self.reported_instant_payouts_field.get_value_as_float()
+            if reported_instant_payouts_float is None or reported_instant_payouts_float < 0: raise ValidationError("Reported Instant Payouts must be a non-negative number.")
+
+            actual_cash_in_drawer_float = self.actual_cash_in_drawer_field.get_value_as_float()
+            if actual_cash_in_drawer_float is None or actual_cash_in_drawer_float < 0: raise ValidationError("Actual Cash in Drawer must be a non-negative number.")
+
         except ValidationError as ve:
             self._on_scan_error_callback(f"Input Error: {ve.message}"); return
         except Exception as ex_val:
             self._on_scan_error_callback(f"Input Error: Invalid number in reported totals - {ex_val}"); return
 
         self._clear_scan_error_properties()
-        if self.scan_error_text_widget.page: self.scan_error_text_widget.update() # Update to show cleared error
 
         instant_sales_items_data_for_submission = [item.get_data_for_submission() for item in self.sales_items_table_component.get_all_items_for_submission()]
         all_current_table_items = self.sales_items_table_component.get_all_data_items()
@@ -167,16 +190,20 @@ class SalesEntryView(ft.Container):
 
         if items_with_empty_fields:
             self._prompt_for_empty_field_books_confirmation(
-                items_with_empty_fields, reported_online_sales, reported_online_payouts,
-                reported_instant_payouts, instant_sales_items_data_for_submission )
+                items_with_empty_fields,
+                reported_online_sales_float, reported_online_payouts_float,
+                reported_instant_payouts_float, actual_cash_in_drawer_float,
+                instant_sales_items_data_for_submission )
         else:
             self._open_confirm_shift_submission_dialog(
-                reported_online_sales, reported_online_payouts,
-                reported_instant_payouts, instant_sales_items_data_for_submission )
+                reported_online_sales_float, reported_online_payouts_float,
+                reported_instant_payouts_float, actual_cash_in_drawer_float,
+                instant_sales_items_data_for_submission )
 
     def _prompt_for_empty_field_books_confirmation(
             self, items_to_confirm: List[SalesEntryItemData],
-            reported_online_sales: int, reported_online_payouts: int, reported_instant_payouts: int,
+            reported_online_sales_float: float, reported_online_payouts_float: float,
+            reported_instant_payouts_float: float, actual_cash_in_drawer_float: float,
             current_sales_item_details: List[Dict[str, Any]]):
         book_details_str = "\n".join([f"- Game {item.book_model.game.game_number} / Book {item.book_number}" for item in items_to_confirm])
         dialog_content_column = ft.Column(
@@ -196,7 +223,9 @@ class SalesEntryView(ft.Container):
                     updated_sales_item_details.append(item_data.get_data_for_submission())
             self._update_totals_and_book_counts_properties()
             self._open_confirm_shift_submission_dialog(
-                reported_online_sales, reported_online_payouts, reported_instant_payouts, updated_sales_item_details )
+                reported_online_sales_float, reported_online_payouts_float,
+                reported_instant_payouts_float, actual_cash_in_drawer_float,
+                updated_sales_item_details )
             if self.page: self.page.update()
         confirm_dialog = ft.AlertDialog(
             modal=True, title=ft.Text("Confirm Unentered Instant Sale Books"), content=dialog_content_column,
@@ -208,30 +237,40 @@ class SalesEntryView(ft.Container):
         self.page.open(confirm_dialog)
 
     def _open_confirm_shift_submission_dialog(
-            self, reported_online_sales: int, reported_online_payouts: int, reported_instant_payouts: int,
+            self, reported_online_sales_float: float, reported_online_payouts_float: float,
+            reported_instant_payouts_float: float, actual_cash_in_drawer_float: float,
             sales_item_details: List[Dict[str, Any]]):
         total_instant_tickets = sum(item.get('tickets_sold_calculated', 0) for item in sales_item_details)
-        total_instant_value = sum(item.get('amount_calculated', 0) for item in sales_item_details)
+        total_instant_value_dollars = sum(item.get('amount_calculated', 0) for item in sales_item_details)
+
         confirmation_content_column = ft.Column([
             ft.Text("Please confirm the values you are submitting:", weight=ft.FontWeight.BOLD), ft.Divider(),
-            ft.Text(f"Reported Total Online Sales Today: ${reported_online_sales}"),
-            ft.Text(f"Reported Total Online Payouts Today: ${reported_online_payouts}"),
-            ft.Text(f"Reported Total Instant Payouts Today: ${reported_instant_payouts}"), ft.Divider(),
+            ft.Text(f"Reported Total Online Sales Today: ${reported_online_sales_float:.2f}"),
+            ft.Text(f"Reported Total Online Payouts Today: ${reported_online_payouts_float:.2f}"),
+            ft.Text(f"Reported Total Instant Payouts Today: ${reported_instant_payouts_float:.2f}"),
+            ft.Text(f"Actual Cash in Drawer: ${actual_cash_in_drawer_float:.2f}", weight=ft.FontWeight.BOLD),
+            ft.Divider(),
             ft.Text("Instant Game Sales for this submission (from table):"),
             ft.Text(f"  Total Instant Tickets: {total_instant_tickets}"),
-            ft.Text(f"  Total Instant Value: ${total_instant_value}"), ft.Divider(),
+            ft.Text(f"  Total Instant Value: ${total_instant_value_dollars:.2f}"),
+            ft.Divider(),
             ft.Text("This will finalize this set of entries. Are you sure?", weight=ft.FontWeight.BOLD)
-        ], tight=True, spacing=8, width=450, scroll=ft.ScrollMode.AUTO, height=300)
+        ], tight=True, spacing=8, width=450, scroll=ft.ScrollMode.AUTO, height=350)
+
         final_confirm_dialog = create_confirmation_dialog(
             title_text="Confirm Shift Submission", content_control=confirmation_content_column,
-            on_confirm=lambda e: self._execute_database_submission(reported_online_sales, reported_online_payouts, reported_instant_payouts, sales_item_details),
+            on_confirm=lambda e: self._execute_database_submission(
+                reported_online_sales_float, reported_online_payouts_float,
+                reported_instant_payouts_float, actual_cash_in_drawer_float,
+                sales_item_details),
             on_cancel=lambda ev: self.page.close(self.page.dialog), confirm_button_text="Submit Shift",
             confirm_button_style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_ACCENT_700, color=ft.Colors.WHITE), )
         self.page.dialog = final_confirm_dialog
         self.page.open(final_confirm_dialog)
 
     def _execute_database_submission(
-            self, reported_online_sales: int, reported_online_payouts: int, reported_instant_payouts: int,
+            self, reported_online_sales_float: float, reported_online_payouts_float: float,
+            reported_instant_payouts_float: float, actual_cash_in_drawer_float: float,
             sales_item_details: List[Dict[str, Any]]):
         self.page.close(self.page.dialog)
         if not self.current_user or self.current_user.id is None:
@@ -242,11 +281,15 @@ class SalesEntryView(ft.Container):
                                    content=ft.Text("Submitting shift and sales data, please wait...", color=ft.Colors.AMBER_900, weight=ft.FontWeight.BOLD),
                                    actions=[ft.TextButton("Dismiss", disabled=True)] )
         self.page.banner = loading_banner; self.page.banner.open = True; self.page.update()
+
         try:
             with get_db_session() as db:
                 submitted_shift = self.shift_service.create_new_shift_submission(
-                    db=db, user_id=self.current_user.id, reported_online_sales=reported_online_sales,
-                    reported_online_payouts=reported_online_payouts, reported_instant_payouts=reported_instant_payouts,
+                    db=db, user_id=self.current_user.id,
+                    reported_online_sales_float=reported_online_sales_float,
+                    reported_online_payouts_float=reported_online_payouts_float,
+                    reported_instant_payouts_float=reported_instant_payouts_float,
+                    actual_cash_in_drawer_float=actual_cash_in_drawer_float,
                     sales_item_details=sales_item_details )
             self.page.banner.open = False
             self._open_submission_summary_dialog(submitted_shift)
@@ -261,25 +304,45 @@ class SalesEntryView(ft.Container):
             if self.page: self.page.update()
 
 
-    def _open_submission_summary_dialog(self, submitted_shift):
+    def _open_submission_summary_dialog(self, submitted_shift: ShiftSubmission):
+        calc_drawer_val_dollars = submitted_shift.calculated_drawer_value / 100.0
+        delta_online_sales_dollars = submitted_shift.calculated_delta_online_sales / 100.0
+        delta_online_payouts_dollars = submitted_shift.calculated_delta_online_payouts / 100.0
+        delta_instant_payouts_dollars = submitted_shift.calculated_delta_instant_payouts / 100.0
+        drawer_difference_dollars = submitted_shift.drawer_difference / 100.0
+
+        diff_text = f"${abs(drawer_difference_dollars):.2f}"
+        diff_label = ""
+        diff_color = ft.Colors.BLACK # Default
+        if drawer_difference_dollars > 0:
+            diff_label = " (Shortfall)"
+            diff_color = ft.Colors.RED_ACCENT_700
+        elif drawer_difference_dollars < 0:
+            diff_label = " (Overage)"
+            diff_color = ft.Colors.GREEN_ACCENT_700
+        else: # Exactly 0
+            diff_label = " (Balanced)"
+            # diff_color = ft.Colors.GREEN_ACCENT_700 # Or keep black for balanced
+
+        dialog_content_list = [
+            ft.Text("Shift Submission Summary:", weight=ft.FontWeight.BOLD, size=16),
+            ft.Text(f"Instant Sales (from table): ${submitted_shift.total_value_instant:.2f}"),
+            ft.Text(f"Online Sales Delta: ${delta_online_sales_dollars:.2f}"),
+            ft.Text(f"Online Payout Delta: ${delta_online_payouts_dollars:.2f}"),
+            ft.Text(f"Instant Payout Delta: ${delta_instant_payouts_dollars:.2f}"),
+            ft.Divider(height=5),
+            ft.Text(f"Calculated Drawer Value: ${calc_drawer_val_dollars:.2f}", weight=ft.FontWeight.BOLD),
+            ft.Text(f"Drawer Difference: {diff_text}{diff_label}", color=diff_color, weight=ft.FontWeight.BOLD, size=14),
+            ft.Divider(height=5),
+        ]
+
         dialog = ft.AlertDialog(
-            title=ft.Text("Shift Submission Summary"),
-            content=ft.Column(
-                [
-                    ft.Text("Shift Submission Summary:"),
-                    ft.Text(f"Instant Sales: ${submitted_shift.total_value_instant}"),
-                    ft.Text(f"Instant Payout: ${submitted_shift.calculated_delta_instant_payouts}"),
-                    ft.Text(f"Online Sales Delta: ${submitted_shift.calculated_delta_online_sales}"),
-                    ft.Text(f"Online Payout Delta: ${submitted_shift.calculated_delta_online_payouts}"),
-                    ft.Divider(),
-                    ft.Text(f"Net Drop: ${submitted_shift.net_drop_value}"),
-                ],
-                tight=True,
-            ),
-            actions=[
-                ft.TextButton("Go to Dashboard", on_click=self._go_to_dashboard),
-            ],
+            modal=True, # Prevent interaction with background
+            title=ft.Text("Shift Submission Successful", weight=ft.FontWeight.BOLD),
+            content=ft.Column(dialog_content_list, tight=True, spacing=8, width=350, scroll=ft.ScrollMode.AUTO),
+            actions=[ ft.FilledButton("Go to Dashboard", on_click=self._go_to_dashboard, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))) ],
             actions_alignment=ft.MainAxisAlignment.END,
+            shape=ft.RoundedRectangleBorder(radius=10)
         )
 
         self.page.dialog = dialog
@@ -301,15 +364,22 @@ class SalesEntryView(ft.Container):
             page_ref=self.page, sales_entry_service=self.sales_entry_service,
             on_item_change_callback=self._update_totals_and_book_counts_properties,
             on_all_items_loaded_callback=self._handle_table_items_loaded )
-        reported_totals_row = ft.Row([self.reported_online_sales_field, self.reported_online_payouts_field, self.reported_instant_payouts_field,], spacing=10)
+
+        reported_totals_row = ft.Row(
+            [self.reported_online_sales_field, self.reported_online_payouts_field, self.reported_instant_payouts_field, self.actual_cash_in_drawer_field],
+            spacing=10
+        )
+
         info_row = ft.Row(
             [ self.today_date_widget, ft.Container(expand=True), self.books_in_table_count_widget,
               ft.VerticalDivider(width=1, color=ft.Colors.with_opacity(0.3, ft.Colors.ON_SURFACE), thickness=1),
               self.pending_entry_books_count_widget, ],
             alignment=ft.MainAxisAlignment.START, spacing=15, vertical_alignment=ft.CrossAxisAlignment.CENTER )
         top_section = ft.Column(
-            [ info_row, ft.Text("Enter Cumulative Daily Totals from External Terminal:", style=ft.TextThemeStyle.TITLE_SMALL, weight=ft.FontWeight.BOLD),
-              reported_totals_row, ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+            [ info_row,
+              ft.Text("Enter Cumulative Daily Totals from External Terminal & Actual Cash:", style=ft.TextThemeStyle.TITLE_SMALL, weight=ft.FontWeight.BOLD),
+              reported_totals_row,
+              ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
               ft.Text("Scan Instant Game Tickets or Enter Next Ticket # Manually:", style=ft.TextThemeStyle.TITLE_SMALL, weight=ft.FontWeight.BOLD),
               ft.Row([self.scanner_text_field], vertical_alignment=ft.CrossAxisAlignment.CENTER), self.scan_error_text_widget
               ], spacing=10 )

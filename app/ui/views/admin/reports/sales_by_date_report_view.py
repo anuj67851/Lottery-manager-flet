@@ -27,12 +27,12 @@ class SalesByDateReportView(ft.Container):
 
         self.all_users_for_filter: List[User] = []
         self._selected_user_id_filter: Optional[int] = None
-        self._selected_start_date: Optional[datetime.date] = datetime.date.today() - datetime.timedelta(days=1)
+        self._selected_start_date: Optional[datetime.date] = datetime.date.today() - datetime.timedelta(days=0)
         self._selected_end_date: Optional[datetime.date] = datetime.date.today()
 
         self.sales_entries_report_data_cache: List[Dict[str, Any]] = []
-        self.shifts_summary_report_data_cache: List[Dict[str, Any]] = []
-        self.aggregated_shift_totals_cache: Dict[str, float] = {} # To store aggregated shift totals
+        self.shifts_summary_report_data_cache: List[Dict[str, Any]] = [] # This will hold data with cumulative diff
+        self.aggregated_shift_totals_cache: Dict[str, float] = {}
 
         self.file_picker = ft.FilePicker(on_result=self._on_file_picker_result)
         self.start_date_picker_ref = ft.DatePicker(on_change=lambda e: self._on_date_selected(e, 'start'), help_text="Select Start Date")
@@ -47,14 +47,13 @@ class SalesByDateReportView(ft.Container):
         self.export_pdf_button = ft.FilledButton("Export to PDF", icon=ft.Icons.PICTURE_AS_PDF, on_click=self._export_report_to_pdf, height=45, disabled=True)
         self.error_text_widget = ft.Text(visible=False, color=ft.Colors.RED_700, weight=ft.FontWeight.BOLD)
 
-        # --- Summary Widgets ---
         self.summary_total_instant_sales_widget = ft.Text("Total Instant Sales: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
         self.summary_total_instant_tickets_widget = ft.Text("Total Instant Tickets: 0", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
-
         self.summary_total_online_sales_widget = ft.Text("Total Online Sales: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
         self.summary_total_online_payouts_widget = ft.Text("Total Online Payouts: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
         self.summary_total_instant_payouts_widget = ft.Text("Total Instant Payouts: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
-        self.summary_total_net_drop_widget = ft.Text("Total Net Drop: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
+        self.summary_total_calculated_drawer_widget = ft.Text("Total Calc. Drawer: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
+        self.summary_total_drawer_difference_widget = ft.Text("Total Drawer Diff: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
 
 
         sales_entries_column_definitions: List[Dict[str, Any]] = [
@@ -67,7 +66,7 @@ class SalesByDateReportView(ft.Container):
             {"key": "book_display", "label": "Book #", "sortable": True,
              "custom_sort_value_getter": lambda item: (item.get("game_number_actual"), item.get("book_number_actual")),
              "searchable": True,
-             "display_formatter": lambda val, item: ft.Text(f"{item.get('game_number_actual', 'N/A')}-{item.get('book_number_actual', 'N/A')}", size=12.5)},
+             "display_formatter": lambda val, item: ft.Text(f"{item.get('game_number_actual', 'GA')}-{item.get('book_number_actual', 'BK')}", size=12.5)},
             {"key": "ticket_order", "label": "Order", "sortable": False, "display_formatter": lambda val, item: ft.Text(str(val).capitalize() if val is not None else "", size=12.5)},
             {"key": "start_number", "label": "Start #", "sortable": False, "numeric": True, "display_formatter": lambda val, item: ft.Text(str(val) if val is not None else "", size=12.5)},
             {"key": "end_number", "label": "End #", "sortable": False, "numeric": True, "display_formatter": lambda val, item: ft.Text(str(val) if val is not None else "", size=12.5)},
@@ -85,15 +84,17 @@ class SalesByDateReportView(ft.Container):
             {"key": "submission_datetime", "label": "Submission Time", "sortable": True, "display_formatter": lambda val, item: ft.Text(val.strftime("%Y-%m-%d %H:%M") if val else "", size=12.5)},
             {"key": "user_name", "label": "User", "sortable": True, "searchable": True, "display_formatter": lambda val, item: ft.Text(str(val), size=12.5)},
             {"key": "calendar_date", "label": "Cal. Date", "sortable": True, "display_formatter": lambda val, item: ft.Text(val.strftime("%Y-%m-%d") if val else "", size=12.5)},
-            {"key": "calculated_delta_online_sales", "label": "Δ Online Sales", "numeric": True, "display_formatter": lambda val, item: ft.Text(f"${val}", size=12.5)},
-            {"key": "calculated_delta_online_payouts", "label": "Δ Online Payouts", "numeric": True, "display_formatter": lambda val, item: ft.Text(f"${val}", size=12.5)},
-            {"key": "calculated_delta_instant_payouts", "label": "Δ Instant Payouts", "numeric": True, "display_formatter": lambda val, item: ft.Text(f"${val}", size=12.5)},
+            {"key": "calculated_delta_online_sales", "label": "Δ Online Sales", "numeric": True, "display_formatter": lambda val, item: ft.Text(f"${val/100.0:.2f}", size=12.5)},
+            {"key": "calculated_delta_online_payouts", "label": "Δ Online Payouts", "numeric": True, "display_formatter": lambda val, item: ft.Text(f"${val/100.0:.2f}", size=12.5)},
+            {"key": "calculated_delta_instant_payouts", "label": "Δ Instant Payouts", "numeric": True, "display_formatter": lambda val, item: ft.Text(f"${val/100.0:.2f}", size=12.5)},
             {"key": "total_tickets_sold_instant", "label": "Instant Tkts", "numeric": True, "display_formatter": lambda val, item: ft.Text(str(val), size=12.5)},
-            {"key": "total_value_instant", "label": "Instant Value", "numeric": True, "display_formatter": lambda val, item: ft.Text(f"${val}", size=12.5)},
-            {"key": "net_drop_value", "label": "Net Drop", "numeric": True, "sortable": True, "display_formatter": lambda val, item: ft.Text(f"${val}", weight=ft.FontWeight.BOLD, size=12.5)},
+            {"key": "total_value_instant", "label": "Instant Value", "numeric": True, "display_formatter": lambda val, item: ft.Text(f"${val:.2f}", size=12.5)},
+            {"key": "calculated_drawer_value", "label": "Calc. Drawer", "numeric": True, "sortable": True, "display_formatter": lambda val, item: ft.Text(f"${val/100.0:.2f}", weight=ft.FontWeight.BOLD, size=12.5)},
+            {"key": "drawer_difference", "label": "Drawer Diff.", "numeric": True, "sortable": True, "display_formatter": self._format_drawer_difference_cell},
+            {"key": "cumulative_drawer_difference", "label": "Cum. Diff.", "numeric": True, "sortable": False, "display_formatter": self._format_cumulative_drawer_difference_cell}, # New Column
         ]
         self.shifts_summary_table = PaginatedDataTable[Dict[str, Any]](
-            page=self.page, fetch_all_data_func=lambda: self.shifts_summary_report_data_cache,
+            page=self.page, fetch_all_data_func=lambda: self.shifts_summary_report_data_cache, # Data now includes cumulative
             column_definitions=shifts_summary_column_definitions, action_cell_builder=None,
             rows_per_page=10, initial_sort_key="submission_datetime", initial_sort_ascending=False,
             no_data_message="No shift submissions found." )
@@ -105,6 +106,41 @@ class SalesByDateReportView(ft.Container):
         self.content = self._build_body()
         self._load_initial_filters()
         self._generate_report_data_and_display()
+
+    def _format_drawer_difference_cell(self, drawer_diff_cents: Optional[int], item: Dict[str, Any]) -> ft.Control:
+        if drawer_diff_cents is None:
+            return ft.Text("N/A", size=12.5)
+
+        drawer_diff_dollars = drawer_diff_cents / 100.0
+        text_val = f"${abs(drawer_diff_dollars):.2f}"
+        color = ft.Colors.BLACK
+
+        if drawer_diff_dollars > 0:
+            text_val += " (S)"
+            color = ft.Colors.RED_ACCENT_700
+        elif drawer_diff_dollars < 0:
+            text_val += " (O)"
+            color = ft.Colors.GREEN_ACCENT_700
+
+        return ft.Text(text_val, color=color, weight=ft.FontWeight.BOLD, size=12.5)
+
+    def _format_cumulative_drawer_difference_cell(self, cumulative_diff_cents: Optional[int], item: Dict[str, Any]) -> ft.Control:
+        if cumulative_diff_cents is None:
+            return ft.Text("N/A", size=12.5) # Should not happen if calculated
+
+        cumulative_diff_dollars = cumulative_diff_cents / 100.0
+        text_val = f"${abs(cumulative_diff_dollars):.2f}"
+        color = ft.Colors.BLACK
+
+        if cumulative_diff_dollars > 0: # Cumulative Shortfall
+            text_val += " (S)"
+            color = ft.Colors.RED_ACCENT_400 # Slightly less intense for cumulative
+        elif cumulative_diff_dollars < 0: # Cumulative Overage
+            text_val += " (O)"
+            color = ft.Colors.GREEN_ACCENT_400 # Slightly less intense for cumulative
+
+        return ft.Text(text_val, color=color, size=12.5)
+
 
     def _go_back(self, e):
         nav_params = {**self.previous_view_params, "current_user": self.current_user, "license_status": self.license_status}
@@ -170,12 +206,35 @@ class SalesByDateReportView(ft.Container):
             except ValueError: self._selected_user_id_filter = None
         else: self._selected_user_id_filter = None
 
+    def _calculate_cumulative_drawer_difference(self, shifts_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Calculates and adds 'cumulative_drawer_difference' to each shift dictionary."""
+        # Sort by submission_datetime to ensure correct cumulative calculation
+        # If PaginatedDataTable handles sorting, this might be redundant or need coordination.
+        # For robust calculation, sort here.
+        sorted_shifts = sorted(shifts_data, key=lambda x: x['submission_datetime'])
+
+        cumulative_diff_cents = 0
+        processed_shifts = []
+        for shift in sorted_shifts:
+            current_shift_diff_cents = shift.get('drawer_difference', 0)
+            cumulative_diff_cents += current_shift_diff_cents
+            shift_copy = shift.copy() # Avoid modifying the original dict from cache/service directly
+            shift_copy['cumulative_drawer_difference'] = cumulative_diff_cents
+            processed_shifts.append(shift_copy)
+
+        # If the original data was sorted differently by the table, we need to restore that order
+        # OR ensure the table sorts by submission_datetime before displaying cumulative.
+        # For simplicity, assume the display order will match this sort or that cumulative is independent of display sort.
+        return processed_shifts
+
+
     def _generate_report_data_and_display(self, e: ft.ControlEvent = None):
         self.error_text_widget.value = ""; self.error_text_widget.visible = False
         self.export_pdf_button.disabled = True
         self.sales_entries_report_data_cache = []
-        self.shifts_summary_report_data_cache = []
-        self.aggregated_shift_totals_cache = {} # Reset cache
+        self.shifts_summary_report_data_cache = [] # This will be raw data from service
+        processed_shifts_for_table: List[Dict[str, Any]] = [] # This will have cumulative
+        self.aggregated_shift_totals_cache = {}
 
         if not self._selected_start_date or not self._selected_end_date:
             self.error_text_widget.value = "Please select both start and end dates."
@@ -184,7 +243,8 @@ class SalesByDateReportView(ft.Container):
         if self.error_text_widget.value:
             self.error_text_widget.visible = True
             if self.error_text_widget.page: self.error_text_widget.update()
-            self.sales_entries_table.refresh_data_and_ui()
+            self.sales_entries_table.refresh_data_and_ui() # Show no data
+            self.shifts_summary_table.fetch_all_data_func = lambda: [] # Pass empty list to table
             self.shifts_summary_table.refresh_data_and_ui()
             self._update_all_summary_totals()
             if self.export_pdf_button.page: self.export_pdf_button.update()
@@ -196,44 +256,56 @@ class SalesByDateReportView(ft.Container):
             with get_db_session() as db:
                 self.sales_entries_report_data_cache = self.report_service.get_sales_report_data(
                     db, start_datetime, end_datetime, self._selected_user_id_filter )
-                # This now returns a tuple
-                shifts_data, agg_totals = self.report_service.get_shifts_summary_data_for_report(
+
+                raw_shifts_data, agg_totals = self.report_service.get_shifts_summary_data_for_report(
                     db, start_datetime, end_datetime, self._selected_user_id_filter )
-                self.shifts_summary_report_data_cache = shifts_data
+
+                self.shifts_summary_report_data_cache = raw_shifts_data # Store raw for PDF
+                processed_shifts_for_table = self._calculate_cumulative_drawer_difference(raw_shifts_data)
                 self.aggregated_shift_totals_cache = agg_totals
 
-            self.sales_entries_table.refresh_data_and_ui()
+            self.sales_entries_table.refresh_data_and_ui() # Uses its own cache
+
+            # Update the PaginatedDataTable for shifts to use the processed data
+            self.shifts_summary_table.fetch_all_data_func = lambda: processed_shifts_for_table
             self.shifts_summary_table.refresh_data_and_ui()
+
             self.export_pdf_button.disabled = not (bool(self.sales_entries_report_data_cache) or bool(self.shifts_summary_report_data_cache))
         except Exception as ex:
             self.sales_entries_report_data_cache = []; self.shifts_summary_report_data_cache = []
             self.aggregated_shift_totals_cache = {}
-            self.sales_entries_table.refresh_data_and_ui(); self.shifts_summary_table.refresh_data_and_ui()
+            self.sales_entries_table.refresh_data_and_ui()
+            self.shifts_summary_table.fetch_all_data_func = lambda: []
+            self.shifts_summary_table.refresh_data_and_ui()
             self.error_text_widget.value = f"Error generating report: {ex}"; self.error_text_widget.visible = True
+
         self._update_all_summary_totals()
         if self.error_text_widget.page: self.error_text_widget.update()
         if self.export_pdf_button.page: self.export_pdf_button.update()
         if self.page: self.page.update()
 
+
     def _update_all_summary_totals(self):
-        # Instant Sales and Tickets (from detailed sales entries)
         total_instant_sales = sum(item.get('sales_entry_total_value', 0) for item in self.sales_entries_report_data_cache)
         total_instant_tickets = sum(item.get('count', 0) for item in self.sales_entries_report_data_cache)
         self.summary_total_instant_sales_widget.value = f"Total Instant Sales: ${total_instant_sales:.2f}"
         self.summary_total_instant_tickets_widget.value = f"Total Instant Tickets: {total_instant_tickets}"
 
-        # Shift Aggregates (from aggregated_shift_totals_cache)
-        self.summary_total_online_sales_widget.value = f"Total Online Sales: ${self.aggregated_shift_totals_cache.get('sum_delta_online_sales', 0):.2f}"
-        self.summary_total_online_payouts_widget.value = f"Total Online Payouts: ${self.aggregated_shift_totals_cache.get('sum_delta_online_payouts', 0):.2f}"
-        self.summary_total_instant_payouts_widget.value = f"Total Instant Payouts: ${self.aggregated_shift_totals_cache.get('sum_delta_instant_payouts', 0):.2f}"
-        self.summary_total_net_drop_widget.value = f"Total Net Drop: ${self.aggregated_shift_totals_cache.get('sum_net_drop_value', 0):.2f}"
+        self.summary_total_online_sales_widget.value = f"Total Online Sales: ${self.aggregated_shift_totals_cache.get('sum_delta_online_sales', 0.0):.2f}"
+        self.summary_total_online_payouts_widget.value = f"Total Online Payouts: ${self.aggregated_shift_totals_cache.get('sum_delta_online_payouts', 0.0):.2f}"
+        self.summary_total_instant_payouts_widget.value = f"Total Instant Payouts: ${self.aggregated_shift_totals_cache.get('sum_delta_instant_payouts', 0.0):.2f}"
+        self.summary_total_calculated_drawer_widget.value = f"Total Calc. Drawer: ${self.aggregated_shift_totals_cache.get('sum_calculated_drawer_value', 0.0):.2f}"
+        self.summary_total_drawer_difference_widget.value = f"Total Drawer Diff: ${self.aggregated_shift_totals_cache.get('sum_drawer_difference', 0.0):.2f}"
+
 
         for widget in [self.summary_total_instant_sales_widget, self.summary_total_instant_tickets_widget,
                        self.summary_total_online_sales_widget, self.summary_total_online_payouts_widget,
-                       self.summary_total_instant_payouts_widget, self.summary_total_net_drop_widget]:
+                       self.summary_total_instant_payouts_widget, self.summary_total_calculated_drawer_widget, self.summary_total_drawer_difference_widget]:
             if widget.page: widget.update()
 
     def _export_report_to_pdf(self, e: ft.ControlEvent):
+        # Use self.shifts_summary_report_data_cache (raw, without UI-only cumulative) for PDF generation.
+        # The PDF generator will calculate its own cumulative if needed, or get it pre-calculated from service.
         if not (self.sales_entries_report_data_cache or self.shifts_summary_report_data_cache):
             self.page.open(ft.SnackBar(ft.Text("No data to export. Generate a report first."), open=True)); return
         if not self._selected_start_date or not self._selected_end_date:
@@ -256,14 +328,15 @@ class SalesByDateReportView(ft.Container):
                         if user: user_filter_name_for_pdf = user.username
                 except Exception: pass
 
-            # Calculate instant sales totals to pass to PDF
             total_instant_sales_val = sum(item.get('sales_entry_total_value', 0) for item in self.sales_entries_report_data_cache)
             total_instant_tickets_val = sum(item.get('count', 0) for item in self.sales_entries_report_data_cache)
 
+            # Pass the raw shifts_summary_report_data_cache to the PDF generator
+            # The PDF generator will handle calculating cumulative if its logic requires it internally.
             success, msg = self.report_service.generate_sales_report_pdf_from_data(
                 detailed_sales_entries_data=self.sales_entries_report_data_cache,
-                shifts_summary_data=self.shifts_summary_report_data_cache,
-                aggregated_shift_totals=self.aggregated_shift_totals_cache, # Pass the new aggregated totals
+                shifts_summary_data=self.shifts_summary_report_data_cache, # Raw data for PDF
+                aggregated_shift_totals=self.aggregated_shift_totals_cache,
                 total_instant_sales_value=total_instant_sales_val,
                 total_instant_tickets_count=total_instant_tickets_val,
                 start_date=start_datetime, end_date=end_datetime,
@@ -280,23 +353,22 @@ class SalesByDateReportView(ft.Container):
             self.generate_report_button, ft.Container(width=5), self.export_pdf_button, ]
         filters_row = ft.Row(filter_controls, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=10, wrap=True)
 
-        # Grand Totals Display Area
         grand_totals_layout = ft.Column(
             [
                 ft.Text("Overall Period Summary", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.BOLD),
                 ft.Row([self.summary_total_online_sales_widget, self.summary_total_instant_sales_widget], spacing=20, alignment=ft.MainAxisAlignment.SPACE_AROUND),
                 ft.Row([self.summary_total_online_payouts_widget, self.summary_total_instant_payouts_widget], spacing=20, alignment=ft.MainAxisAlignment.SPACE_AROUND),
-                ft.Row([self.summary_total_net_drop_widget, self.summary_total_instant_tickets_widget], spacing=20, alignment=ft.MainAxisAlignment.SPACE_AROUND),
+                ft.Row([self.summary_total_calculated_drawer_widget, self.summary_total_drawer_difference_widget], spacing=20, alignment=ft.MainAxisAlignment.SPACE_AROUND),
+                ft.Row([self.summary_total_instant_tickets_widget], spacing=20, alignment=ft.MainAxisAlignment.SPACE_AROUND),
             ],
             spacing=10,
-            # horizontal_alignment=ft.CrossAxisAlignment.CENTER # Center the rows of totals
         )
 
         report_card_content = ft.Column(
             [ ft.Text("Sales & Shift Submission Report Filters", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.BOLD),
               filters_row, self.error_text_widget,
               ft.Divider(height=20),
-              grand_totals_layout, # New Grand Totals Section
+              grand_totals_layout,
               ft.Divider(height=20),
               ft.Text("Shift Submission Summaries (per Shift)", style=ft.TextThemeStyle.TITLE_LARGE, weight=ft.FontWeight.BOLD),
               self.shifts_summary_table,
@@ -305,10 +377,10 @@ class SalesByDateReportView(ft.Container):
               self.sales_entries_table,
               ], spacing=15, expand=True, scroll=ft.ScrollMode.ADAPTIVE, )
 
-        TARGET_CARD_MAX_WIDTH = 1200
+        TARGET_CARD_MAX_WIDTH = 1200 # Increased width for new column
         page_width_for_calc = self.page.width if self.page.width and self.page.width > 0 else TARGET_CARD_MAX_WIDTH + 40
         card_effective_width = min(TARGET_CARD_MAX_WIDTH, page_width_for_calc - 40)
-        card_effective_width = max(card_effective_width, 900) # Min width
+        card_effective_width = max(card_effective_width, 950) # Min width increased
         report_card = ft.Card(
             content=ft.Container(content=report_card_content, padding=20, border_radius=ft.border_radius.all(10)),
             elevation=2, width=card_effective_width )
