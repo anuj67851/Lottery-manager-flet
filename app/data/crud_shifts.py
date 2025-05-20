@@ -62,9 +62,9 @@ def create_shift_submission(
         net_drop_value=0              # Default, will be updated
     )
 
-    print(f"DEBUG: Calendar Date: {calendar_date}")
-    print(f"DEBUG: Submission DT: {submission_dt}")
-    print(f"DEBUG: Reported Online Sales: {reported_online_sales}, Prev Sum: {previous_online_sales_deltas_sum}, Current Delta: {current_delta_online_sales}")
+    # print(f"DEBUG: Calendar Date: {calendar_date}")
+    # print(f"DEBUG: Submission DT: {submission_dt}")
+    # print(f"DEBUG: Reported Online Sales: {reported_online_sales}, Prev Sum: {previous_online_sales_deltas_sum}, Current Delta: {current_delta_online_sales}")
     # db.add(shift) # The service layer will add to session
     return shift
 

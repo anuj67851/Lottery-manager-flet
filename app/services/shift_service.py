@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func # Added import
 
 from app.core import BookNotFoundError, DatabaseError
-from app.core.models import ShiftSubmission, User # Assuming ShiftSubmission from models.py
+from app.core.models import ShiftSubmission # Assuming ShiftSubmission from models.py
 from app.data import crud_shifts
 from app.services import BookService
 from app.services.sales_entry_service import SalesEntryService # Will be used here
