@@ -7,6 +7,8 @@ DEFAULT_DB_BASE_DIR_NAME = "db_data"
 DB_BASE_DIR_STR = os.environ.get("LOTTERY_DB_DIR", DEFAULT_DB_BASE_DIR_NAME)
 DB_BASE_DIR = Path(DB_BASE_DIR_STR)
 
+LOGS_BASE_DIR = DB_BASE_DIR.joinpath("logs")
+
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_BASE_DIR.joinpath(DB_FILENAME)}"
 
 # License File Configuration

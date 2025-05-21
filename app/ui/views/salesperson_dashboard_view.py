@@ -133,7 +133,7 @@ class SalesPersonDashboardView(ft.Container):
         self.page.dialog = add_user_dialog; self.page.open(self.page.dialog)
 
     def _handle_table_data_change(self): pass
-    
+
     def _build_body(self) -> ft.Container:
         # Layout remains largely the same, UserService calls now have better validation.
         welcome_message_text = "Salesperson Controls"
@@ -141,5 +141,5 @@ class SalesPersonDashboardView(ft.Container):
             welcome_message_text = f"Welcome, {self.current_user.username} (Salesperson)!"
         license_section = ft.Card(elevation=4, content=ft.Container(content=ft.Column([ft.Text("License Management", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD), ft.Row([self.license_status_label, self.license_action_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)], spacing=10), padding=20, border_radius=ft.border_radius.all(8)))
         user_management_section = ft.Card(elevation=4, content=ft.Container(content=ft.Column([ft.Row([ft.Text("User Account Management (Admins & Employees)", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD, expand=True), self.search_bar, ft.FilledButton("Add New User", icon=ft.Icons.PERSON_ADD_ALT_1_ROUNDED, on_click=self._handle_add_user_click, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)))], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER), ft.Divider(height=10, color=ft.Colors.TRANSPARENT), self.users_table_component], spacing=15), padding=20, border_radius=ft.border_radius.all(8), expand=True), expand=True)
-        centered_content_column = ft.Column([ft.Text(welcome_message_text, style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER), ft.Divider(height=20, color=ft.Colors.TRANSPARENT), license_section, ft.Divider(height=20, color=ft.Colors.TRANSPARENT), user_management_section], spacing=20, expand=True, scroll=ft.ScrollMode.ADAPTIVE)
+        centered_content_column = ft.Column([ft.Text(welcome_message_text, style=ft.TextThemeStyle.HEADLINE_MEDIUM, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER), ft.Divider(height=20, color=ft.Colors.TRANSPARENT), license_section, ft.Divider(height=20, color=ft.Colors.TRANSPARENT), user_management_section], spacing=20, expand=True, scroll=ft.ScrollMode.ADAPTIVE, width=1000)
         return ft.Container(content=centered_content_column, alignment=ft.alignment.top_center, expand=True)

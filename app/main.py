@@ -7,7 +7,7 @@ import sys
 from app.ui.router import Router
 from app.data.database import init_db, get_db_session
 from app.constants import LOGIN_ROUTE, FIRST_RUN_SETUP_ROUTE
-from app.config import APP_TITLE, DEFAULT_THEME_MODE, DB_BASE_DIR, VERSION
+from app.config import APP_TITLE, DEFAULT_THEME_MODE, DB_BASE_DIR, VERSION, LOGS_BASE_DIR
 from app.services import UserService
 from app.core.exceptions import DatabaseError
 
@@ -19,7 +19,7 @@ def setup_logging():
 
     # Base log filename. TimedRotatingFileHandler will append date to rotated files.
     base_log_filename = f"{APP_TITLE.lower().replace(' ', '_')}.log"
-    log_file_path = DB_BASE_DIR.joinpath(base_log_filename)
+    log_file_path = LOGS_BASE_DIR.joinpath(base_log_filename)
 
     # --- TimedRotatingFileHandler for daily rotation ---
     # when='midnight': Rotate at midnight.
