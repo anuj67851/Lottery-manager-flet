@@ -5,6 +5,8 @@ This module contains the database schema definitions using SQLAlchemy's
 declarative base. It includes the `User`, `Game`, `Book`,
 `SalesEntry`, and `ShiftSubmission` models.
 """
+import logging
+
 import bcrypt
 import datetime
 from sqlalchemy import String, Integer, Column, ForeignKey, Boolean, DateTime, UniqueConstraint, Date, func
@@ -13,6 +15,7 @@ from sqlalchemy.orm import relationship
 
 from app.constants import REVERSE_TICKET_ORDER
 
+logger = logging.getLogger(__name__)
 Base = declarative_base()
 
 class User(Base):
@@ -183,7 +186,7 @@ class Book(Base):
         if not self.game:
             # This should not happen if the book is properly associated with a game.
             # Handle error or log, as total_tickets is needed.
-            print(f"Warning: Cannot set book {self.id} as fully sold. Game association missing.")
+            logger.warning(f"Warning: Cannot set book {self.id} as fully sold. Game association missing.")
             return
 
         if self.ticket_order == REVERSE_TICKET_ORDER:

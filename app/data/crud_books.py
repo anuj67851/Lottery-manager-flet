@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import select, distinct
@@ -9,6 +10,8 @@ from sqlalchemy.orm import joinedload
 from app.core.models import Book, SalesEntry, Game
 from app.core.exceptions import DatabaseError, ValidationError, BookNotFoundError  # Assuming you might need these
 from app.constants import REVERSE_TICKET_ORDER
+
+logger = logging.getLogger(__name__)
 
 def get_book_by_id(db: Session, book_id: int) -> Optional[Book]:
     return db.query(Book).options(joinedload(Book.game)).filter(Book.id == book_id).first()
@@ -72,7 +75,7 @@ def update_book_details(db: Session, book: Book, updates: Dict[str, Any]) -> Boo
         if hasattr(book, key):
             setattr(book, key, value)
         else:
-            print(f"Warning: Attribute {key} not found on Book model during update.")
+            logger.warning(f"Warning: Attribute {key} not found on Book model during update.")
     try:
         return book
     except Exception as e:

@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
@@ -6,6 +8,7 @@ from app.core.models import User
 from app.constants import EMPLOYEE_ROLE # Use constant
 from app.core.exceptions import UserNotFoundError, DatabaseError, ValidationError # Import custom exceptions
 
+logger = logging.getLogger(__name__)
 def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return db.query(User).filter(User.id == user_id).first()
 
@@ -116,7 +119,7 @@ def delete_user(db: Session, user_id: int) -> bool:
         username_deleted = user.username # For logging or messages
         db.delete(user)
         db.commit()
-        print(f"User '{username_deleted}' (ID: {user_id}) deleted successfully.") # Keep for now, or use logging
+        logger.info(f"User '{username_deleted}' (ID: {user_id}) deleted successfully.") # Keep for now, or use logging
         return True
     except Exception as e:
         db.rollback()

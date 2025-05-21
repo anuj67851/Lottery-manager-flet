@@ -1,4 +1,5 @@
 import datetime
+import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -7,6 +8,7 @@ from sqlalchemy import func, desc
 from app.core.models import ShiftSubmission, SalesEntry, User, Book
 from app.core.exceptions import DatabaseError
 
+logger = logging.getLogger(__name__)
 def create_shift_submission(
         db: Session,
         user_id: int,
@@ -94,7 +96,7 @@ def create_shift_submission(
     # This CRUD function doesn't use it directly for setting drawer_difference.
     # The service layer passes the converted actual_cash_in_drawer_cents to the update function.
 
-    print(f"DEBUG CRUD Create Shift: User {user_id}, Reported Online Sales (cents): {final_reported_online_sales_cents}")
+    logger.debug(f"DEBUG CRUD Create Shift: User {user_id}, Reported Online Sales (cents): {final_reported_online_sales_cents}")
     return shift
 
 def get_shift_by_id(db: Session, shift_id: int) -> Optional[ShiftSubmission]:
@@ -169,10 +171,10 @@ def update_shift_aggregates_and_drawer_value(
     if actual_cash_in_drawer_cents is not None:
         shift.drawer_difference = calculated_drawer_value_cents - actual_cash_in_drawer_cents
 
-    print(f"DEBUG CRUD Update Shift: ID {shift.id} - Instant Sales Agg: Tickets={shift.total_tickets_sold_instant}, Value (Stored Cents)={shift.total_value_instant}")
-    print(f"DEBUG CRUD Update Shift: ID {shift.id} - Deltas (Cents): OnlineSales={shift.calculated_delta_online_sales}, OnlinePayouts={shift.calculated_delta_online_payouts}, InstantPayouts={shift.calculated_delta_instant_payouts}")
-    print(f"DEBUG CRUD Update Shift: ID {shift.id} - Calculated Drawer Value (Cents): {shift.calculated_drawer_value}")
+    logger.debug(f"DEBUG CRUD Update Shift: ID {shift.id} - Instant Sales Agg: Tickets={shift.total_tickets_sold_instant}, Value (Stored Cents)={shift.total_value_instant}")
+    logger.debug(f"DEBUG CRUD Update Shift: ID {shift.id} - Deltas (Cents): OnlineSales={shift.calculated_delta_online_sales}, OnlinePayouts={shift.calculated_delta_online_payouts}, InstantPayouts={shift.calculated_delta_instant_payouts}")
+    logger.debug(f"DEBUG CRUD Update Shift: ID {shift.id} - Calculated Drawer Value (Cents): {shift.calculated_drawer_value}")
     if actual_cash_in_drawer_cents is not None:
-        print(f"DEBUG CRUD Update Shift: ID {shift.id} - Actual Cash (Cents): {actual_cash_in_drawer_cents}, Drawer Difference (Cents): {shift.drawer_difference}")
+        logger.debug(f"DEBUG CRUD Update Shift: ID {shift.id} - Actual Cash (Cents): {actual_cash_in_drawer_cents}, Drawer Difference (Cents): {shift.drawer_difference}")
 
     return shift

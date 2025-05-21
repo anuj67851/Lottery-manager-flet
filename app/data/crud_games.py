@@ -1,11 +1,12 @@
 import datetime
+import logging
 
 from sqlalchemy.orm import Session # Added Session import
 from sqlalchemy.exc import IntegrityError
 from app.core.models import Game, SalesEntry, Book
 from app.core.exceptions import DatabaseError, ValidationError, GameNotFoundError # Import custom exceptions
 
-
+logger = logging.getLogger(__name__)
 def get_game_by_game_number(db: Session, game_number: int) -> Game | None: # Type hint for game_number
     return db.query(Game).filter(Game.game_number == game_number).first()
 
@@ -126,7 +127,7 @@ def update_game_details(db: Session, game: Game, updates: dict) -> Game:
             setattr(game, key, value) # For price, this will set the cents value
         else:
             # This should ideally not happen if 'updates' keys are validated beforehand
-            print(f"Warning: Attribute {key} not found on Game model during update.")
+            logger.warning(f"Warning: Attribute {key} not found on Game model during update.")
 
     if game_number_changed:
         # Explicitly check if the new game_number is already taken by another game
