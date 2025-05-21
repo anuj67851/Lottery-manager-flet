@@ -67,4 +67,4 @@ def run_initialization_script(db: Session, config_service: ConfigurationService)
             if float(VERSION) > current_db_version:
                 logger.info(f"Need to perform migration from {current_db_version} to {VERSION}. Placeholder for migration.")
         except ValueError as e:
-            logger.error(f"Error: Could not parse database version '{current_db_version_str}' as float. Skipping migration check.", exc_info=e)
+            logger.critical(f"Error: Could not parse database version '{current_db_version_str}' as float. Skipping migration check.", exc_info=True)

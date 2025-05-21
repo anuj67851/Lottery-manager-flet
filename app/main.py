@@ -1,7 +1,7 @@
 import flet as ft
 from sqlalchemy.exc import OperationalError
 import logging
-import logging.handlers
+import logging.handlers # TimedRotatingFileHandler is here
 import sys
 
 from app.ui.router import Router
@@ -14,29 +14,44 @@ from app.core.exceptions import DatabaseError
 logger = logging.getLogger("lottery_manager_app")
 
 def setup_logging():
-    """Configures logging for the application."""
+    """Configures logging for the application with daily rotation."""
     logger.setLevel(logging.INFO)
 
-    log_file_name = f"{APP_TITLE.lower().replace(' ', '_')}_{VERSION}.log"
-    log_file_path = DB_BASE_DIR.joinpath(log_file_name)
+    # Base log filename. TimedRotatingFileHandler will append date to rotated files.
+    base_log_filename = f"{APP_TITLE.lower().replace(' ', '_')}.log"
+    log_file_path = DB_BASE_DIR.joinpath(base_log_filename)
 
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_file_path, maxBytes=1*1024*1024, backupCount=5, encoding='utf-8'
+    # --- TimedRotatingFileHandler for daily rotation ---
+    # when='midnight': Rotate at midnight.
+    # interval=1: Rotate daily.
+    # backupCount=7: Keep the last 7 rotated log files.
+    # encoding='utf-8': Specify encoding.
+    # delay=True: Defer file opening until the first log message if using Python 3.7+
+    # (useful if directory might not exist immediately, but we create DB_BASE_DIR first).
+    # utc=False: Use local time for rotation scheduling.
+    timed_file_handler = logging.handlers.TimedRotatingFileHandler(
+        log_file_path,
+        when='midnight',
+        interval=1,
+        backupCount=7, # Keep logs for 7 days, adjust as needed
+        encoding='utf-8',
+        delay=False, # Set to False as we ensure directory exists
+        utc=False
     )
     file_formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s'
     )
-    file_handler.setFormatter(file_formatter)
-    logger.addHandler(file_handler)
+    timed_file_handler.setFormatter(file_formatter)
+    logger.addHandler(timed_file_handler)
 
     console_handler = logging.StreamHandler(sys.stdout)
     console_formatter = logging.Formatter('%(levelname)s: %(message)s')
     console_handler.setFormatter(console_formatter)
-    console_handler.setLevel(logging.DEBUG)
+    console_handler.setLevel(logging.DEBUG) # Or INFO for less console verbosity
     logger.addHandler(console_handler)
 
     logger.info(f"--- Logging initialized for {APP_TITLE} v{VERSION} ---")
-    logger.info(f"Log file location: {log_file_path.resolve()}")
+    logger.info(f"Log file: {log_file_path.resolve()} (rotates daily, keeps {timed_file_handler.backupCount} backups)")
 
     def handle_exception(exc_type, exc_value, exc_traceback):
         if issubclass(exc_type, KeyboardInterrupt):
@@ -45,7 +60,6 @@ def setup_logging():
         logger.critical("Unhandled exception:", exc_info=(exc_type, exc_value, exc_traceback))
 
     sys.excepthook = handle_exception
-
 
 def main(page: ft.Page):
     try:
@@ -76,7 +90,10 @@ def main(page: ft.Page):
 
     router = None
     initial_route = LOGIN_ROUTE
-    log_file_name_for_ui = f"{APP_TITLE.lower().replace(' ', '_')}_{VERSION}.log" # Prepare for UI message
+
+    # Prepare the log file name for UI messages *before* any potential error that prevents setup_logging
+    # This is a bit redundant now since setup_logging defines it, but safe for UI error messages.
+    ui_log_filename = f"{APP_TITLE.lower().replace(' ', '_')}.log"
 
     try:
         init_db()
@@ -98,7 +115,7 @@ def main(page: ft.Page):
             ft.Text(APP_TITLE, size=24, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
             ft.Text("Application Startup Failed: Database Error", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700, text_align=ft.TextAlign.CENTER),
             ft.Container(height=10),
-            ft.Text(f"Please check logs at '{DB_BASE_DIR.joinpath(log_file_name_for_ui)}' for details.", text_align=ft.TextAlign.CENTER, size=12), # Corrected line
+            ft.Text(f"Please check logs at '{DB_BASE_DIR.joinpath(ui_log_filename)}' for details.", text_align=ft.TextAlign.CENTER, size=12),
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=10, expand=True))
         page.update()
         return
@@ -111,7 +128,7 @@ def main(page: ft.Page):
             ft.Text(APP_TITLE, size=24, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
             ft.Text("Application Startup Failed: Unexpected Error", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700, text_align=ft.TextAlign.CENTER),
             ft.Container(height=10),
-            ft.Text(f"Please check logs at '{DB_BASE_DIR.joinpath(log_file_name_for_ui)}' for details.", text_align=ft.TextAlign.CENTER, size=12), # Corrected line
+            ft.Text(f"Please check logs at '{DB_BASE_DIR.joinpath(ui_log_filename)}' for details.", text_align=ft.TextAlign.CENTER, size=12),
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=10, expand=True))
         page.update()
         return
