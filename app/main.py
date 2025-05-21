@@ -33,7 +33,7 @@ def setup_logging():
         log_file_path,
         when='midnight',
         interval=1,
-        backupCount=7, # Keep logs for 7 days, adjust as needed
+        backupCount=15, # Keep logs for 15 days, adjust as needed
         encoding='utf-8',
         delay=False, # Set to False as we ensure directory exists
         utc=False
