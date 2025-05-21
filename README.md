@@ -1,223 +1,181 @@
-# Lottery Manager (Version 0.1 - Beta)
+# Lottery Manager Application ✨
 
-Lottery Manager is a desktop application built with Python and Flet, designed to help manage lottery game inventory, sales, and reporting for small to medium-sized lottery retail operations.
+**Version:** 0.1
+
+---
 
 ## Table of Contents
 
-1.  [Overview](#overview)
-2.  [Features](#features)
-    *   [General](#general)
-    *   [Salesperson Role](#salesperson-role)
-    *   [Admin Role](#admin-role)
-    *   [Employee Role](#employee-role)
-3.  [Technology Stack](#technology-stack)
-4.  [Prerequisites](#prerequisites)
-5.  [Setup and Installation](#setup-and-installation)
-6.  [Running the Application](#running-the-application)
-7.  [Initial Setup Flow (First Time Use)](#initial-setup-flow-first-time-use)
-8.  [Database](#database)
-9.  [Key Application Logic](#key-application-logic)
-    *   [QR Code Scanning](#qr-code-scanning)
-    *   [Book Management](#book-management)
-    *   [Shift Submissions](#shift-submissions)
-10. [Future Enhancements (Ideas)](#future-enhancements-ideas)
-11. [Contributing](#contributing)
+1.  [Overview](#overview-️)
+2.  [Key Features](#key-features-)
+    *   [User Authentication & Roles](#secure-user-authentication--role-management-)
+    *   [License Control](#license-control-)
+    *   [Inventory Management](#comprehensive-inventory-management-)
+    *   [Sales & Shift Operations](#efficient-sales--shift-operations-)
+    *   [Reporting](#insightful-reporting-admin-access-)
+    *   [Data Management & Integrity](#data-management--integrity-)
+    *   [System Operations](#system-operations-)
+3.  [Technical Specifications](#technical-specifications-)
+4.  [Installation and Running (Windows)](#installation-and-running-windows-application-)
+    *   [Prerequisites](#prerequisites)
+    *   [Installation Steps](#installation)
+    *   [Running the Application](#running-the-application)
+    *   [First-Run Setup](#first-run-setup)
+    *   [Data Directory (`db_data`)](#data-directory-db_data)
+5.  [Using the Application](#using-the-application-)
+6.  [Included Assets](#included-assets-)
+7.  [Support](#support-)
 
-## Overview
+---
 
-The Lottery Manager application provides a user-friendly interface for:
-*   Tracking lottery game inventory (games and individual books).
-*   Recording sales of instant lottery tickets.
-*   Managing employee shifts and reconciling daily sales figures.
-*   Generating various reports for sales analysis and inventory status.
-*   User account management with distinct roles (Salesperson, Admin, Employee).
+## 1. Overview ℹ️
 
-The application uses a local SQLite database for data persistence and offers features like database backup and license activation (managed by the Salesperson).
+The **Lottery Manager** is a user-friendly desktop application designed for small businesses to efficiently manage lottery ticket inventory, track sales, handle shift submissions, and generate insightful reports. Built with Python and the modern Flet UI framework, it utilizes an SQLite database for reliable local data storage and ReportLab for PDF report generation.
 
-## Features
+This application is intended for single-user operation at any given time on a Windows PC.
 
-### General
-*   **User Authentication:** Secure login for Salesperson, Admin, and Employee roles.
-*   **Role-Based Access Control:** Different features and views are available based on the logged-in user's role.
-*   **Responsive UI:** Built with Flet, offering a modern Material 3 themed interface.
-*   **Light/Dark Mode:** Supports both light and dark themes (configurable).
-*   **Data Persistence:** Uses SQLite database to store all application data.
-*   **Error Handling:** Custom exceptions and user-friendly error messages.
+## 2. Key Features 🌟
 
-### Salesperson Role
-*   **Initial Setup:**
-    *   Creates the first Administrator account.
-    *   Activates/Deactivates the application license.
-*   **User Management:** Can view, add, and edit Admin and Employee user accounts (excluding Salesperson accounts).
-*   **Dashboard:** Access to license and user management functionalities.
+### Secure User Authentication & Role Management 🔑
 
-### Admin Role
-*   **Dashboard:** Central hub for accessing all administrative functions.
+*   **First-Run Setup:** Guides the owner to create a primary **Salesperson/Owner** account with full administrative privileges upon initial launch.
+*   **Role-Based Access Control:** Clear separation of duties based on user roles.
+
+    | Role                  | Key Responsibilities & Permissions                                                                                                                                 |
+    | :-------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | **Salesperson (Owner)**| Manages application license; Creates/manages Admin and Employee accounts. Can view all user activities (implicitly).                                                |
+    | **Admin**              | Manages game and book inventory; Performs special sales operations (e.g., full book sale); Generates all financial/inventory reports; Manages Admin/Employee accounts.|
+    | **Employee**           | Primarily handles daily sales entry and end-of-shift submissions.                                                                                                   |                                                                                                  |  
+* User accounts can be **activated** or **deactivated** (except Salesperson via general UI).
+*   Robust input validation for user credentials and details to ensure data quality.
+
+### License Control  aktiviert
+
+*   Application license status is securely stored in an **encrypted `license.key` file**, independent of the main operational database, enhancing tamper resistance.
+*   The Salesperson/Owner can easily activate or deactivate the application license through their dedicated dashboard.
+*   Admin and Employee functionalities require an active license.
+
+### Comprehensive Inventory Management 📚
+
 *   **Game Management:**
-    *   Create new lottery games (defining name, price, total tickets, ticket order, game number).
-    *   Edit existing game details (name, game number; price, total tickets, order can be changed if no sales recorded).
-    *   Expire active games (marks game and associated active books as finished).
-    *   Reactivate expired games.
+    *   Create, view, edit, and manage the lifecycle (expire/reactivate) of different lottery game types.
+    *   Define game price (stored in cents, displayed in dollars), total tickets per book, default ticket counting order (forward/reverse), and unique game numbers.
 *   **Book Management:**
-    *   Add new books for existing games (manually or via scan).
-    *   Edit book details (book number, current ticket; ticket order can be changed if no sales recorded).
-    *   Activate/Deactivate individual books.
-    *   Delete books (only if inactive and no sales entries).
-*   **Sales Functions (Admin Overrides/Tools):**
-    *   **Full Book Sale:** Mark one or more entire books as fully sold. This creates a special administrative shift and corresponding sales entries.
-    *   **Activate Books (Batch):** Activate multiple scanned/selected books.
-*   **Sales Entry & Shift Submission:** Access to the primary sales entry screen for recording daily sales and submitting shifts (can act as an employee).
-*   **User Management:**
-    *   Manage Admin and Employee accounts (create, edit details, change role between Admin/Employee, activate/deactivate).
-    *   Cannot change own role if Admin.
-    *   Cannot change another Admin's password.
-*   **Reporting:**
-    *   **Sales & Shift Submission Report:** Detailed breakdown of sales entries and shift summaries by date range and user.
-    *   **Open Books Report:** Lists all currently active books with remaining tickets and value.
-    *   **Game Expiry Report:** Shows active and expired games, with filtering options.
-    *   **Stock Levels Report:** Summarizes book stock (total, active, finished, pending) per game and calculates active stock value.
-    *   All reports can be exported to PDF.
-*   **System Management:**
-    *   **Database Backup:** Create timestamped backups of the application database.
+    *   Add new physical lottery ticket books, linking them to specific games.
+    *   View and edit book details including book number, current ticket number.
+    *   Ticket order can be changed *only if no sales are recorded* for the book.
+    *   Activate or deactivate books for sales processing.
+    *   Securely delete books (if inactive and have no sales history).
+    *   Supports batch addition of books for efficiency.
 
-### Employee Role
-*   **Dashboard:** Simple dashboard with access to sales entry.
-*   **Sales Entry & Shift Submission:**
-    *   Primary interface for recording daily sales.
-    *   Enter cumulative daily totals from external terminals (online sales, online payouts, instant payouts).
-    *   Scan instant game tickets (Game-Book-Ticket format) to record sales.
-    *   Manually enter next ticket number for books.
-    *   Confirm "all tickets sold" for a book.
-    *   Submit shift at the end of their work period, which finalizes sales entries and calculates deltas and net drop for the shift.
+### Efficient Sales & Shift Operations 💸
 
-## Technology Stack
+*   **Sales Entry:**
+    *   Streamlined interface for recording instant game ticket sales.
+    *   Supports **QR code scanning** (Game No + Book No + Ticket No) for rapid and accurate input.
+    *   The system intelligently handles new book entries: if a scanned book (for an existing game) is not yet in inventory, it's automatically created and activated.
+*   **Shift Submissions:**
+    *   Employees and Admins can submit detailed end-of-shift reports.
+    *   Inputs include:
+        *   Manually reported cumulative totals for online sales & payouts (from external terminals).
+        *   Manually reported cumulative totals for instant game payouts.
+        *   Actual cash counted in the lottery drawer.
+    *   The system automatically calculates net deltas for these transactions for the current shift based on previous submissions for the same calendar day.
+    *   Tracks total instant tickets sold and their value for the shift.
+    *   Provides a calculated expected drawer value and clearly highlights any drawer difference (shortfall/overage).
 
-*   **GUI Framework:** [Flet](https://flet.dev/) (Python)
-*   **Database ORM:** [SQLAlchemy](https://www.sqlalchemy.org/)
-*   **Database:** [SQLite](https://www.sqlite.org/)
-*   **Password Hashing:** [bcrypt](https://pypi.org/project/bcrypt/)
-*   **PDF Generation:** [ReportLab](https://www.reportlab.com/)
-*   **Programming Language:** Python 3.x (developed with 3.10+)
+### Insightful Reporting (Admin Access) 📊
 
-## Prerequisites
+All reports are exportable to PDF format.
 
-*   Python 3.11 or higher.
-*   `pip` (Python package installer).
+| Report Name             | Description                                                                                                                                      | Filters Available                               |
+| :---------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------- |
+| **Sales & Shifts Report** | Comprehensive details of individual instant game sales and summarized shift submissions. Includes overall financial summaries for the period.    | Date Range, User                                |
+| **Open Books Report**   | Lists all currently active lottery books, showing remaining tickets, ticket price, and total remaining monetary value for each.                  | Game                                            |
+| **Game Expiry Report**  | Overview of all games, their status (active/expired), creation dates, and expiration dates.                                                    | Status (Active/Expired), Expiry Date Range    |
+| **Stock Levels Report** | Summarizes book counts (total, active, finished, pending) and the total monetary value of active stock for each game.                            | Game                                            |
 
-## Setup and Installation
+### Data Management & Integrity 🛡️
 
-1.  **Clone the Repository:**
-    ```bash
-    git clone <repository_url>
-    cd lottery-manager # Or your repository's directory name
-    ```
+*   **Database Backup:** Admins can initiate a manual backup of the entire application database.
+    *   Backups are timestamped and organized into daily folders: `[data_directory]/backups/YYYY-MM-DD/HH-MM-SS_lottery_manager.db`.
+*   **Input Validation:** Extensive validation on user inputs across all modules to ensure data integrity and prevent errors.
+*   **Error Handling:** Graceful handling of common operational errors with user-friendly feedback messages.
 
-2.  **Create a Virtual Environment (Recommended):**
-    ```bash
-    python -m venv venv
-    # On Windows
-    venv\Scripts\activate
-    # On macOS/Linux
-    source venv/bin/activate
-    ```
+### System Operations ⚙️
 
-3.  **Install Dependencies:**
-    A `requirements.txt` file would typically be used. Based on the imports, the key dependencies are:
-    ```
-    flet
-    sqlalchemy
-    bcrypt
-    reportlab
-    ```
-    You can install them using:
-    ```bash
-    pip install flet sqlalchemy bcrypt reportlab
-    ```
-    *(If a `requirements.txt` is provided in the future, use `pip install -r requirements.txt`)*
+*   **Logging:** Detailed application activity, warnings, and errors are logged to a daily rotating file: `[data_directory]/lottery_manager.log`. This aids in troubleshooting and support. Unhandled exceptions are also captured.
+*   **Configurable Data Directory:** The primary location for the database, license file, logs, and backups can be specified via the `LOTTERY_DB_DIR` environment variable, offering deployment flexibility.
 
-4.  **Directory Structure:**
-    The application expects a `db_data` directory at the root level (where `main.py` resides or is run from) for the SQLite database and backups. This directory will be created automatically if it doesn't exist when the application first initializes the database.
+## 3. Technical Specifications 💻
 
-## Running the Application
+*   **Core Language:** Python 3.x
+*   **Graphical User Interface:** Flet Framework
+*   **Database Engine:** SQLite (via SQLAlchemy ORM)
+*   **Password Hashing:** bcrypt
+*   **File Encryption:** `cryptography` library (Fernet symmetric encryption for `license.key`)
+*   **PDF Generation:** ReportLab Toolkit
 
-Once the setup is complete, run the application from the project's root directory:
+## 4. Installation and Running (Windows Application) 🚀
 
-```bash
-python app/main.py
-```
+This application is packaged for Windows using PyInstaller (via `flet pack`).
 
-The application window will open, starting with the Login View.
+### Prerequisites
 
-## Initial Setup Flow (First Time Use)
+*   Windows Operating System (Windows 7 / 8 / 10 / 11).
+*   No separate Python installation is required for the packaged application.
 
-Upon running the application for the first time, the database will be initialized.
+### Installation
 
-1.  **Default Salesperson User:**
-    A default "Salesperson" user is automatically created:
-    *   Username: `sales`
-    *   Password: `admin123`
-        *(It is highly recommended to change this password after the initial setup via the Salesperson's user management interface if that feature were added, or by directly editing the database if necessary for security in a real deployment scenario. For now, the Admin user can edit this Salesperson user after being created.)*
+1.  Locate the distribution folder created by the `flet pack ... --onedir` command (typically `dist/Lottery Manager/`). This folder contains `Lottery Manager.exe` and all necessary supporting files.
+2.  Copy this entire **"Lottery Manager"** folder to a desired location on your computer (e.g., `C:\Program Files\Lottery Manager` or onto the Desktop).
 
-2.  **Login as Salesperson:**
-    Use the credentials above to log into the Salesperson Dashboard.
+### Running the Application
 
-3.  **Create First Administrator:**
-    *   Navigate to "User Account Management" on the Salesperson Dashboard.
-    *   Click "Add New User".
-    *   Create a user with the "Admin" role. This will be the primary administrator for the system.
+1.  Navigate into the "Lottery Manager" folder where you copied the files.
+2.  Double-click on **`Lottery Manager.exe`** to start the application.
 
-4.  **Activate License:**
-    *   On the Salesperson Dashboard, in the "License Management" section.
-    *   Click "Activate License". The application license is now active.
+### First-Run Setup
 
-5.  **Logout and Login as Admin:**
-    *   Log out as the Salesperson.
-    *   Log in using the credentials of the Admin user you just created.
-    *   The Admin can now manage the application, create other Admin/Employee users, manage games, books, etc.
+*   When you run the application for the very first time (or if the data directory has been cleared), a setup screen will appear.
+*   You will be prompted to create the primary **Salesperson/Owner** account. This account is crucial for managing the application's license and other user accounts.
+*   Enter a secure username and password as instructed on-screen.
 
-## Database
+### Data Directory (`db_data`)
 
-*   **Type:** SQLite
-*   **Filename:** `lottery_manager.db`
-*   **Location:** The database file is stored in the `db_data/` directory relative to where the application is run.
-*   **Initialization:** Tables are created automatically on the first run if they don't exist.
-*   **Backups:**
-    *   The Admin role can trigger database backups.
-    *   Backups are stored in `db_data/backups/YYYY/MM/YYYY-MM-DD_HH-MM-SS_lottery_manager.db`.
+*   Upon first run, the application will automatically create a subdirectory named `db_data` **inside the same folder where `Lottery Manager.exe` is located**.
+*   This `db_data` folder is vital and will store:
+    *   `lottery_manager.db`: The main application database.
+    *   `license.key`: The encrypted file storing the license activation status.
+    *   `lottery_manager.log`: The primary application log file (this file rotates daily, keeping recent history).
+    *   `backups/`: A subdirectory where database backups (initiated by an Admin) will be saved.
+*   **Important:** Do not manually delete or modify files within the `db_data` directory unless you understand the consequences (e.g., deleting `lottery_manager.db` will reset all application data and require re-running the first-run setup).
+*   **Custom Data Directory (Advanced):**
+    If you need to store the `db_data` folder in a location different from where `Lottery Manager.exe` resides, you can set the `LOTTERY_DB_DIR` environment variable on your system *before* launching the application.
+    *   Example (Command Prompt): `set LOTTERY_DB_DIR="D:\MyAppStorage\LotteryData"`
+    *   Example (PowerShell): `$env:LOTTERY_DB_DIR="D:\MyAppStorage\LotteryData"`
+        Then run `Lottery Manager.exe`. The data folder and its contents will be created/used in the specified custom path.
 
-## Key Application Logic
+## 5. Using the Application 🖱️
 
-### QR Code Scanning
-*   The application supports QR code scanning for sales entry (Game-Book-Ticket format) and potentially for adding books (Game-Book format).
-*   Constants define the expected lengths for game, book, and ticket parts of the scan.
-*   A `ScanInputHandler` class manages debounced input from scanners to parse the data.
+1.  **Login:** After the first-run setup (if applicable), the login screen will appear. Enter your credentials.
+2.  **Dashboard Navigation:** Based on your user role (Salesperson, Admin, or Employee), you will be directed to the appropriate dashboard with access to relevant features.
+3.  **License Activation:** For full functionality (Admin/Employee dashboards), the license must be activated by the Salesperson. The Salesperson dashboard is always accessible for license management.
+4.  **Database Backups:** Admins should regularly use the "Backup Database" feature. **It is highly recommended to copy these backup files to an external storage device (like a USB drive) or a secure cloud location for disaster recovery.**
+5.  **Troubleshooting:** If you encounter any issues:
+    *   Note down any error messages displayed by the application.
+    *   The primary log file (`lottery_manager.log` located inside the `db_data` folder) contains detailed technical information. This file can be very helpful for support or developers to diagnose problems.
 
-### Book Management
-*   Books are instances of Games.
-*   Each book has a `ticket_order` (`forward` or `reverse`) and `current_ticket_number`.
-*   `REVERSE_TICKET_ORDER`: Tickets are sold from `total_tickets - 1` down to `0`. `current_ticket_number` is the highest available ticket. Sold out state is `-1`.
-*   `FORWARD_TICKET_ORDER`: Tickets are sold from `0` up to `total_tickets - 1`. `current_ticket_number` is the next ticket to be sold. Sold out state is `total_tickets`.
-*   Books must be activated before sales can be recorded against them.
-*   Deactivating a book or marking it as fully sold sets its `finish_date`.
+## 6. Included Assets 🖼️
 
-### Shift Submissions
-*   Employees (or Admins acting as employees) submit shifts at the end of their sales period.
-*   A `ShiftSubmission` record captures:
-    *   User-reported cumulative totals from external terminals (online sales/payouts, instant payouts).
-    *   Calculated delta values for these totals (current reported - sum of previous deltas for the same calendar day).
-    *   Aggregated instant game sales (total tickets and value) processed during *this specific shift*. These are derived from `SalesEntry` records linked to the shift.
-    *   A `net_drop_value` calculated as:
-        `(delta_online_sales + total_instant_value_for_shift) - (delta_online_payouts + delta_instant_payouts_for_shift)`
+The `assets` folder (which is bundled with the application by PyInstaller due to `--add-data "assets:assets"`) contains:
+*   `app_icon.ico`: The application icon used for the executable and window.
+    *(You can list other assets here if you add more, e.g., images, fonts)*
 
-## Future Enhancements (Ideas)
+## 7. Support 📧
 
-*   More detailed dashboard summaries (e.g., quick view of active stock value).
-*   Password complexity rules and expiry for users.
-*   Direct import/export of game/book data (e.g., CSV).
-*   Enhanced logging for auditing purposes.
-*   More granular permissions within roles.
-*   Automated daily/weekly backup options.
+For support, questions, or feedback, please contact: **anujpatel6785@gmail.com**
 
-## Contributing
-
-Contributions are welcome! Please feel free to fork the repository, make changes, and submit a pull request. For major changes, please open an issue first to discuss what you would like to change.
+---
+**Product Name:** Lottery Manager
+**File Description:** Lottery Ticket Management Application
