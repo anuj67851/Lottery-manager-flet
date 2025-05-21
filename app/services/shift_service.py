@@ -2,29 +2,29 @@ import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func # Added import
+from sqlalchemy import func
 
 from app.core import BookNotFoundError, DatabaseError
-from app.core.models import ShiftSubmission # Assuming ShiftSubmission from models.py
+from app.core.models import ShiftSubmission
 from app.data import crud_shifts
 from app.services import BookService
-from app.services.sales_entry_service import SalesEntryService # Will be used here
+from app.services.sales_entry_service import SalesEntryService
 
 class ShiftService:
     def __init__(self):
-        # SalesEntryService might be instantiated here or passed if it has dependencies
         self.sales_entry_service = SalesEntryService()
 
     def create_shift_for_admin_full_book_sales(
             self,
             db: Session,
             admin_user_id: int,
-            book_ids_to_sell: List[int] # List of Book IDs to be marked as fully sold
-    ) -> Tuple[ShiftSubmission, int, List[str]]: # Returns created shift, success_count, error_messages
+            book_ids_to_sell: List[int]
+    ) -> Tuple[ShiftSubmission, int, List[str]]:
         """
         Creates a dedicated shift for admin-triggered full book sales.
         Marks books as sold and creates corresponding sales entries.
         Calculates aggregates for this special shift. Drawer difference will be $0.
+        `total_value_instant` will be in CENTS.
         """
         current_submission_datetime = datetime.datetime.now()
         created_shift = None
@@ -49,30 +49,26 @@ class ShiftService:
                 ShiftSubmission.submission_datetime < current_submission_datetime
             ).scalar() or 0
 
-            # For admin shifts, actual cash is assumed to match calculated, so difference is 0.
-            # We pass 0.0 initially for actual_cash_in_drawer_float; drawer_difference will be set to 0 explicitly later.
+            # Now directly pass the sums (in cents) to the new _cents_input parameters
             created_shift = crud_shifts.create_shift_submission(
                 db=db,
                 user_id=admin_user_id,
                 submission_dt=current_submission_datetime,
-                reported_online_sales_float=previous_online_sales_deltas_sum_cents / 100.0, # Convert cents to float dollars
-                reported_online_payouts_float=previous_online_payouts_deltas_sum_cents / 100.0,
-                reported_instant_payouts_float=previous_instant_payouts_deltas_sum_cents / 100.0,
-                actual_cash_in_drawer_float=0.0 # Placeholder, will result in drawer_difference = 0
+                # Pass cents directly for reported totals for this admin shift
+                reported_total_online_sales_today_cents_input=previous_online_sales_deltas_sum_cents,
+                reported_total_online_payouts_today_cents_input=previous_online_payouts_deltas_sum_cents,
+                reported_total_instant_payouts_today_cents_input=previous_instant_payouts_deltas_sum_cents,
+                actual_cash_in_drawer_float=0.0 # Still pass 0.0 for consistency, drawer_difference explicitly set later
             )
             db.add(created_shift)
-            db.flush()  # Get created_shift.id
+            db.flush()
 
             book_service = BookService()
-
             for book_id in book_ids_to_sell:
                 try:
                     book_model = book_service.get_book_by_id(db, book_id)
-                    if not book_model:
-                        raise BookNotFoundError(f"Book ID {book_id} not found.")
                     if not book_model.game:
                         db.refresh(book_model, ['game'])
-
                     book_service.mark_book_as_fully_sold(db, book_model.id)
                     self.sales_entry_service.create_sales_entry_for_full_book(
                         db, book_model, created_shift.id
@@ -83,18 +79,16 @@ class ShiftService:
 
             db.flush()
 
-            # Update aggregates. For admin shifts, actual_cash_in_drawer is effectively the calculated_drawer_value.
-            # The `actual_cash_in_drawer_cents` parameter for update_shift_aggregates_and_drawer_value
-            # is not strictly needed here because we will override drawer_difference.
-            # However, to keep the CRUD function simpler, we can pass the calculated value.
+            # actual_cash_in_drawer_cents is effectively the calculated_drawer_value for admin shifts.
+            # First calculate aggregates and the drawer value:
+            crud_shifts.update_shift_aggregates_and_drawer_value(db, created_shift, actual_cash_in_drawer_cents=None)
 
-            crud_shifts.update_shift_aggregates_and_drawer_value(db, created_shift, actual_cash_in_drawer_cents=None) # Calculate aggregates and calculated_drawer_value
-
-            # For admin "full book sale" shifts, drawer_difference is explicitly $0.
-            # The actual_cash_in_drawer would be equal to created_shift.calculated_drawer_value.
+            # Then, explicitly set drawer_difference to 0.
+            # The calculated_drawer_value (in cents) represents the total value of books sold.
+            # We are asserting that the "actual cash" matches this for admin operations.
             created_shift.drawer_difference = 0
-
-            # db.commit() is handled by caller
+            # No need to pass created_shift.calculated_drawer_value to update_shift_aggregates_and_drawer_value
+            # as actual_cash_in_drawer_cents, because we directly set drawer_difference = 0.
 
             return created_shift, successful_sales_count, error_messages
 
@@ -106,18 +100,15 @@ class ShiftService:
             self,
             db: Session,
             user_id: int,
-            reported_online_sales_float: float,    # Expect float (dollars.cents)
-            reported_online_payouts_float: float,  # Expect float
-            reported_instant_payouts_float: float, # Expect float
-            actual_cash_in_drawer_float: float,    # Expect float
+            reported_online_sales_float: float,
+            reported_online_payouts_float: float,
+            reported_instant_payouts_float: float,
+            actual_cash_in_drawer_float: float,
             sales_item_details: List[Dict[str, Any]]
     ) -> ShiftSubmission:
-        """
-        Coordinates the creation of a new shift submission.
-        Float monetary inputs are converted to cents in the CRUD layer.
-        """
         current_submission_datetime = datetime.datetime.now()
 
+        # For regular employee shifts, use the _float parameters
         shift_obj = crud_shifts.create_shift_submission(
             db=db,
             user_id=user_id,
@@ -125,10 +116,10 @@ class ShiftService:
             reported_online_sales_float=reported_online_sales_float,
             reported_online_payouts_float=reported_online_payouts_float,
             reported_instant_payouts_float=reported_instant_payouts_float,
-            actual_cash_in_drawer_float=actual_cash_in_drawer_float
+            actual_cash_in_drawer_float=actual_cash_in_drawer_float # Passed but not used by CRUD for diff directly
         )
         db.add(shift_obj)
-        db.flush()  # Get shift_obj.id
+        db.flush()
 
         if sales_item_details:
             _successful_sales_count, _updated_books_count, sales_processing_errors = \
@@ -141,14 +132,10 @@ class ShiftService:
             if sales_processing_errors:
                 print(f"ShiftService: Errors during sales entry processing for shift {shift_obj.id}: {sales_processing_errors}")
 
-        # Pass actual_cash_in_drawer_cents to the update function so it can set drawer_difference
-        actual_cash_in_drawer_cents = int(actual_cash_in_drawer_float * 100)
+        actual_cash_in_drawer_cents = int(round(actual_cash_in_drawer_float * 100))
         updated_shift_obj = crud_shifts.update_shift_aggregates_and_drawer_value(
             db, shift_obj, actual_cash_in_drawer_cents
         )
-
-        # db.commit() will be handled by the get_db_session context manager
-
         return updated_shift_obj
 
     def get_shifts_for_report(
@@ -158,9 +145,6 @@ class ShiftService:
             end_date: datetime.datetime,
             user_id: Optional[int] = None
     ) -> List[ShiftSubmission]:
-        """
-        Retrieves shift submissions for reporting purposes.
-        """
         return crud_shifts.get_shifts_by_user_and_date_range(
             db=db,
             user_id=user_id,

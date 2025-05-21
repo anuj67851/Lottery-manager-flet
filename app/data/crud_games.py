@@ -10,11 +10,11 @@ def get_game_by_game_number(db: Session, game_number: int) -> Game | None: # Typ
     return db.query(Game).filter(Game.game_number == game_number).first()
 
 
-def create_game(db: Session, game_name: str, price: int, total_tickets: int, game_number: int, order: str) -> Game: # price is int
+def create_game(db: Session, game_name: str, price_in_cents: int, total_tickets: int, game_number: int, order: str) -> Game: # price is in cents
     if not game_name:
         raise ValidationError("Game Name is required for creating a Game.")
-    if price is None or price < 0: # price can be 0 for free games, but not negative
-        raise ValidationError("Price is required and cannot be negative for creating a Game.")
+    if price_in_cents is None or price_in_cents < 0: # price can be 0 for free games (0 cents), but not negative
+        raise ValidationError("Price (in cents) is required and cannot be negative for creating a Game.")
     if not total_tickets or total_tickets <= 0:
         raise ValidationError("Total Tickets must be a positive number for creating a Game.")
     if not game_number or game_number <=0:
@@ -29,7 +29,7 @@ def create_game(db: Session, game_name: str, price: int, total_tickets: int, gam
     try:
         game = Game(
             name=game_name,
-            price=price, # Expecting price
+            price=price_in_cents, # Expecting price in CENTS
             total_tickets=total_tickets,
             default_ticket_order=order,
             game_number=game_number,
@@ -49,6 +49,7 @@ def create_game(db: Session, game_name: str, price: int, total_tickets: int, gam
 
 def get_all_games_sort_by_expiration_prices(db: Session) -> list[Game]: # Added Session type hint
     # Default sort: Active games first, then by price (low to high), then by game_number (low to high)
+    # Game.price is now in cents, sorting remains correct.
     return db.query(Game).order_by(Game.is_expired, Game.price, Game.game_number).all()
 
 
@@ -113,6 +114,7 @@ def update_game_details(db: Session, game: Game, updates: dict) -> Game:
     """
     Updates a game record with the provided dictionary of changes.
     Handles potential IntegrityError for game_number uniqueness.
+    Assumes 'price' in updates is already in CENTS if provided.
     """
     original_game_number = game.game_number
     game_number_changed = False
@@ -121,7 +123,7 @@ def update_game_details(db: Session, game: Game, updates: dict) -> Game:
         if hasattr(game, key):
             if key == "game_number" and value != original_game_number:
                 game_number_changed = True
-            setattr(game, key, value)
+            setattr(game, key, value) # For price, this will set the cents value
         else:
             # This should ideally not happen if 'updates' keys are validated beforehand
             print(f"Warning: Attribute {key} not found on Game model during update.")

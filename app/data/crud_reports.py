@@ -11,6 +11,7 @@ def get_sales_entries_for_report(
         end_submission_date: datetime.datetime,
         user_id: Optional[int] = None
 ) -> List[Dict[str, Any]]:
+    # Game.price is in CENTS, SalesEntry.price is in CENTS
     stmt = (
         select(
             SalesEntry.date.label("sales_entry_creation_date"),
@@ -18,13 +19,13 @@ def get_sales_entries_for_report(
             User.username,
             Game.name.label("game_name"),
             Game.game_number.label("game_number_actual"),
-            Game.price.label("ticket_price_actual"),
+            Game.price.label("ticket_price_actual"), # This is Game.price in CENTS
             Book.book_number.label("book_number_actual"),
             Book.ticket_order,
             SalesEntry.start_number,
             SalesEntry.end_number,
             SalesEntry.count,
-            SalesEntry.price.label("sales_entry_total_value"),
+            SalesEntry.price.label("sales_entry_total_value"), # This is SalesEntry.price in CENTS
             ShiftSubmission.id.label("shift_id")
         )
         .join(ShiftSubmission, SalesEntry.shift_id == ShiftSubmission.id)
@@ -43,8 +44,8 @@ def get_sales_entries_for_report(
     results = db.execute(stmt).mappings().all()
     return [dict(row) for row in results]
 
-# --- Other report CRUD methods (get_open_books_report_data, etc.) remain unchanged ---
 def get_open_books_report_data(db: Session, game_id_filter: Optional[int] = None) -> List[Dict[str, Any]]:
+    # Book.remaining_value and Game.price are in CENTS
     book_query = db.query(Book).options(joinedload(Book.game)).filter(
         Book.is_active == True, Game.is_expired == False
     ).join(Book.game)
@@ -57,8 +58,10 @@ def get_open_books_report_data(db: Session, game_id_filter: Optional[int] = None
                 "game_name": book.game.name, "game_number": book.game.game_number,
                 "book_number": book.book_number, "activate_date": book.activate_date,
                 "current_ticket_number": book.current_ticket_number, "ticket_order": book.ticket_order,
-                "remaining_tickets": book.remaining_tickets, "game_price_per_ticket": book.game.price,
-                "remaining_value": book.remaining_value, "game_total_tickets": book.game.total_tickets,
+                "remaining_tickets": book.remaining_tickets,
+                "game_price_per_ticket": book.game.price, # CENTS
+                "remaining_value": book.remaining_value, # CENTS
+                "game_total_tickets": book.game.total_tickets,
             })
     return report_data
 
@@ -67,7 +70,8 @@ def get_game_expiry_report_data(
         expired_start_date: Optional[datetime.datetime] = None,
         expired_end_date: Optional[datetime.datetime] = None
 ) -> List[Dict[str, Any]]:
-    query = db.query( Game.name, Game.game_number, Game.price, Game.total_tickets,
+    # Game.price is in CENTS
+    query = db.query( Game.name, Game.game_number, Game.price, Game.total_tickets, # Game.price is CENTS
                       Game.is_expired, Game.created_date, Game.expired_date )
     if status_filter:
         if status_filter.lower() == "expired":
@@ -84,6 +88,7 @@ def get_game_expiry_report_data(
     return [dict(row._mapping) for row in results]
 
 def get_stock_levels_report_data(db: Session, game_id_filter: Optional[int] = None) -> List[Dict[str, Any]]:
+    # Game.price and Book.remaining_value are in CENTS
     total_books_sq = ( select(Book.game_id, sql_func.count(Book.id).label("total_book_count"))
                        .group_by(Book.game_id).subquery() )
     active_books_sq = ( select(Book.game_id, sql_func.count(Book.id).label("active_book_count"))
@@ -94,7 +99,7 @@ def get_stock_levels_report_data(db: Session, game_id_filter: Optional[int] = No
                          .filter(Book.is_active == False, Book.activate_date == None, Book.finish_date == None)
                          .group_by(Book.game_id).subquery() )
     stmt = ( select( Game.id.label("game_id"), Game.name.label("game_name"), Game.game_number,
-                     Game.price.label("game_price_per_ticket"),
+                     Game.price.label("game_price_per_ticket"), # Game.price in CENTS
                      sql_func.coalesce(total_books_sq.c.total_book_count, 0).label("total_books"),
                      sql_func.coalesce(active_books_sq.c.active_book_count, 0).label("active_books"),
                      sql_func.coalesce(finished_books_sq.c.finished_book_count, 0).label("finished_books"),
@@ -110,10 +115,10 @@ def get_stock_levels_report_data(db: Session, game_id_filter: Optional[int] = No
     report_data = []
     for summary_row_map in game_stock_summary:
         summary_row = dict(summary_row_map)
-        active_stock_value = 0; game_id = summary_row['game_id']
+        active_stock_value_cents = 0; game_id = summary_row['game_id']
         active_books = db.query(Book).options(joinedload(Book.game)).filter(
             Book.game_id == game_id, Book.is_active == True ).all()
-        for book in active_books: active_stock_value += book.remaining_value
-        summary_row["active_stock_value"] = active_stock_value
+        for book in active_books: active_stock_value_cents += book.remaining_value # Book.remaining_value is in CENTS
+        summary_row["active_stock_value"] = active_stock_value_cents # Store as CENTS
         report_data.append(summary_row)
     return report_data

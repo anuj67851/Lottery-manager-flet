@@ -9,7 +9,8 @@ from app.core.exceptions import DatabaseError
 def create_sales_entry(db: Session, sales_entry_data: SalesEntry) -> SalesEntry:
     """
     Adds a pre-configured SalesEntry object to the database.
-    Assumes sales_entry_data.calculate_count_and_price() has been called.
+    Assumes sales_entry_data.calculate_count_and_price() has been called,
+    and sales_entry_data.price will be in CENTS.
     """
     try:
         db.add(sales_entry_data)

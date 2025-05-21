@@ -4,33 +4,54 @@ from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, desc
 
-from app.core.models import ShiftSubmission, SalesEntry, User, Book  # Ensure all are imported
-from app.core.exceptions import DatabaseError # Add if specific exceptions are raised
+from app.core.models import ShiftSubmission, SalesEntry, User, Book
+from app.core.exceptions import DatabaseError
 
 def create_shift_submission(
         db: Session,
         user_id: int,
         submission_dt: datetime.datetime,
-        reported_online_sales_float: float,       # Expect float (dollars.cents)
-        reported_online_payouts_float: float,     # Expect float
-        reported_instant_payouts_float: float,    # Expect float
-        actual_cash_in_drawer_float: float        # Expect float
+        # Dollar float inputs (primarily for employee shifts from UI)
+        reported_online_sales_float: Optional[float] = None,
+        reported_online_payouts_float: Optional[float] = None,
+        reported_instant_payouts_float: Optional[float] = None,
+        actual_cash_in_drawer_float: Optional[float] = None, # Still needed for employee shifts
+        # Cent integer inputs (primarily for system-derived values like admin shifts)
+        reported_total_online_sales_today_cents_input: Optional[int] = None,
+        reported_total_online_payouts_today_cents_input: Optional[int] = None,
+        reported_total_instant_payouts_today_cents_input: Optional[int] = None
 ) -> ShiftSubmission:
     """
     Creates a new ShiftSubmission instance.
-    Converts float monetary inputs (dollars.cents) to integer cents for storage.
+    Preferentially uses _cents_input parameters if provided for reported totals.
+    Otherwise, converts float monetary inputs (dollars.cents) to integer cents.
     Calculates delta values based on previous shifts on the same calendar_date.
-    Calculates calculated_drawer_value and drawer_difference.
-    Initializes aggregates for instant sales to 0; these are updated later.
+    `total_value_instant` will be stored in CENTS.
     Does NOT commit the transaction.
     """
     calendar_date = submission_dt.date()
 
-    # Convert float inputs to cents (integers) for model storage and calculations
-    reported_online_sales_cents = int(reported_online_sales_float * 100)
-    reported_online_payouts_cents = int(reported_online_payouts_float * 100)
-    reported_instant_payouts_cents = int(reported_instant_payouts_float * 100)
-    actual_cash_in_drawer_cents = int(actual_cash_in_drawer_float * 100)
+    # Determine reported total values in cents
+    if reported_total_online_sales_today_cents_input is not None:
+        final_reported_online_sales_cents = reported_total_online_sales_today_cents_input
+    elif reported_online_sales_float is not None:
+        final_reported_online_sales_cents = int(round(reported_online_sales_float * 100))
+    else:
+        raise ValueError("Either reported_online_sales_float or reported_total_online_sales_today_cents_input must be provided.")
+
+    if reported_total_online_payouts_today_cents_input is not None:
+        final_reported_online_payouts_cents = reported_total_online_payouts_today_cents_input
+    elif reported_online_payouts_float is not None:
+        final_reported_online_payouts_cents = int(round(reported_online_payouts_float * 100))
+    else:
+        raise ValueError("Either reported_online_payouts_float or reported_total_online_payouts_today_cents_input must be provided.")
+
+    if reported_total_instant_payouts_today_cents_input is not None:
+        final_reported_instant_payouts_cents = reported_total_instant_payouts_today_cents_input
+    elif reported_instant_payouts_float is not None:
+        final_reported_instant_payouts_cents = int(round(reported_instant_payouts_float * 100))
+    else:
+        raise ValueError("Either reported_instant_payouts_float or reported_total_instant_payouts_today_cents_input must be provided.")
 
     # Calculate previous delta sums for the same calendar_date (values are already in cents in DB)
     previous_online_sales_deltas_sum_cents = db.query(func.sum(ShiftSubmission.calculated_delta_online_sales)).filter(
@@ -49,48 +70,31 @@ def create_shift_submission(
     ).scalar() or 0
 
     # Calculate current deltas (in cents)
-    current_delta_online_sales_cents = reported_online_sales_cents - previous_online_sales_deltas_sum_cents
-    current_delta_online_payouts_cents = reported_online_payouts_cents - previous_online_payouts_deltas_sum_cents
-    current_delta_instant_payouts_cents = reported_instant_payouts_cents - previous_instant_payouts_deltas_sum_cents
+    current_delta_online_sales_cents = final_reported_online_sales_cents - previous_online_sales_deltas_sum_cents
+    current_delta_online_payouts_cents = final_reported_online_payouts_cents - previous_online_payouts_deltas_sum_cents
+    current_delta_instant_payouts_cents = final_reported_instant_payouts_cents - previous_instant_payouts_deltas_sum_cents
 
     shift = ShiftSubmission(
         user_id=user_id,
         submission_datetime=submission_dt,
         calendar_date=calendar_date,
-        reported_total_online_sales_today=reported_online_sales_cents,
-        reported_total_online_payouts_today=reported_online_payouts_cents,
-        reported_total_instant_payouts_today=reported_instant_payouts_cents,
+        reported_total_online_sales_today=final_reported_online_sales_cents,
+        reported_total_online_payouts_today=final_reported_online_payouts_cents,
+        reported_total_instant_payouts_today=final_reported_instant_payouts_cents,
         calculated_delta_online_sales=current_delta_online_sales_cents,
         calculated_delta_online_payouts=current_delta_online_payouts_cents,
         calculated_delta_instant_payouts=current_delta_instant_payouts_cents,
-        total_tickets_sold_instant=0, # Default, will be updated (count)
-        total_value_instant=0,        # Default, will be updated (dollars, from SalesEntry)
-        calculated_drawer_value=0,    # Default, will be updated (cents)
-        drawer_difference=0           # Default, will be set based on calculated_drawer_value and actual_cash
+        total_tickets_sold_instant=0,
+        total_value_instant=0, # CENTS
+        calculated_drawer_value=0,
+        drawer_difference=0
     )
 
-    # Initial calculation of calculated_drawer_value (in cents)
-    # total_value_instant is in DOLLARS, so convert to cents for this calculation
-    # This will be recalculated more accurately in update_shift_aggregates_and_drawer_value
-    # after instant sales are processed.
-    # For now, it's 0. The main calculation happens in the update function.
+    # actual_cash_in_drawer_float is still needed for regular shifts to be passed to update_shift_aggregates_and_drawer_value
+    # This CRUD function doesn't use it directly for setting drawer_difference.
+    # The service layer passes the converted actual_cash_in_drawer_cents to the update function.
 
-    # Initial calculation of drawer_difference (in cents)
-    # This also relies on calculated_drawer_value which will be finalized later.
-    # The final drawer_difference will be:
-    # shift.calculated_drawer_value (after update) - actual_cash_in_drawer_cents
-    # We can set an initial drawer_difference here if needed, or let update_shift_aggregates_and_drawer_value handle it.
-    # For now, let's set it based on the current (likely zero) calculated_drawer_value.
-    # It will be effectively re-set once calculated_drawer_value is finalized.
-
-    # The actual_cash_in_drawer_cents is fixed at this point.
-    # The calculated_drawer_value will be updated.
-    # So, drawer_difference should be set in update_shift_aggregates_and_drawer_value
-    # by passing actual_cash_in_drawer_cents to it, or by storing actual_cash on shift (less ideal).
-    # Let's defer final drawer_difference calculation to update_shift_aggregates_and_drawer_value.
-    # To do this, we'll pass actual_cash_in_drawer_cents to it.
-
-    print(f"DEBUG CRUD Create Shift: User {user_id}, Reported Online Sales (cents): {reported_online_sales_cents}")
+    print(f"DEBUG CRUD Create Shift: User {user_id}, Reported Online Sales (cents): {final_reported_online_sales_cents}")
     return shift
 
 def get_shift_by_id(db: Session, shift_id: int) -> Optional[ShiftSubmission]:
@@ -127,49 +131,45 @@ def get_shifts_by_user_and_date_range(
 def update_shift_aggregates_and_drawer_value(
         db: Session,
         shift: ShiftSubmission,
-        actual_cash_in_drawer_cents: Optional[int] = None # Pass this for new shifts
+        actual_cash_in_drawer_cents: Optional[int] = None # Pass this for new shifts (in CENTS)
 ) -> ShiftSubmission:
     """
     Recalculates instant sales aggregates, calculated_drawer_value, and drawer_difference for a given shift.
     Assumes sales_entries for the shift are already in the session and will be summed.
-    `total_value_instant` (from SalesEntry) is in DOLLARS.
+    `SalesEntry.price` is in CENTS.
+    `ShiftSubmission.total_value_instant` will store CENTS.
     All other monetary values on ShiftSubmission are in CENTS.
     """
     if not shift:
         raise ValueError("Shift object cannot be None for updating aggregates.")
 
-    if shift.id is None:
-        total_tickets_sold_instant_agg = 0
-        total_value_instant_dollars_agg = 0 # SalesEntry.price is in dollars
-    else:
+    total_tickets_sold_instant_agg = 0
+    total_value_instant_cents_agg = 0 # SalesEntry.price is in CENTS
+
+    if shift.id is not None:
         aggregates = db.query(
             func.sum(SalesEntry.count).label("total_tickets"),
-            func.sum(SalesEntry.price).label("total_value") # This sum is in DOLLARS
-        ).filter(SalesEntry.shift_id == shift.id).one()
+            func.sum(SalesEntry.price).label("total_value") # This sum is in CENTS
+        ).filter(SalesEntry.shift_id == shift.id).one_or_none()
 
-        total_tickets_sold_instant_agg = aggregates.total_tickets or 0
-        total_value_instant_dollars_agg = aggregates.total_value or 0 # This is in DOLLARS
+        if aggregates:
+            total_tickets_sold_instant_agg = aggregates.total_tickets or 0
+            total_value_instant_cents_agg = aggregates.total_value or 0
 
     shift.total_tickets_sold_instant = total_tickets_sold_instant_agg
-    shift.total_value_instant = total_value_instant_dollars_agg # Store in DOLLARS as per model
+    shift.total_value_instant = total_value_instant_cents_agg # Store in CENTS
 
-    # Recalculate calculated_drawer_value (in CENTS)
-    # shift.total_value_instant is in DOLLARS, convert to CENTS for this calculation
-    # Other shift fields (deltas) are already in CENTS.
     calculated_drawer_value_cents = (
             shift.calculated_delta_online_sales +
-            (shift.total_value_instant * 100) -  # Convert instant sales dollars to cents
+            shift.total_value_instant - # Already in CENTS
             (shift.calculated_delta_online_payouts + shift.calculated_delta_instant_payouts)
     )
     shift.calculated_drawer_value = calculated_drawer_value_cents
 
-    # If actual_cash_in_drawer_cents is provided (for new shifts), calculate drawer_difference
     if actual_cash_in_drawer_cents is not None:
         shift.drawer_difference = calculated_drawer_value_cents - actual_cash_in_drawer_cents
-    # Else (for existing shifts being recalculated for other reasons, or admin shifts),
-    # drawer_difference might be managed differently or assumed to be pre-set (e.g., to 0 for admin).
 
-    print(f"DEBUG CRUD Update Shift: ID {shift.id} - Instant Sales Agg: Tickets={shift.total_tickets_sold_instant}, Value (Stored Dollars)={shift.total_value_instant}")
+    print(f"DEBUG CRUD Update Shift: ID {shift.id} - Instant Sales Agg: Tickets={shift.total_tickets_sold_instant}, Value (Stored Cents)={shift.total_value_instant}")
     print(f"DEBUG CRUD Update Shift: ID {shift.id} - Deltas (Cents): OnlineSales={shift.calculated_delta_online_sales}, OnlinePayouts={shift.calculated_delta_online_payouts}, InstantPayouts={shift.calculated_delta_instant_payouts}")
     print(f"DEBUG CRUD Update Shift: ID {shift.id} - Calculated Drawer Value (Cents): {shift.calculated_drawer_value}")
     if actual_cash_in_drawer_cents is not None:

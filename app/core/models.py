@@ -74,7 +74,7 @@ class ShiftSubmission(Base):
 
     # Instant Sales Aggregates (from SalesEntry records linked to THIS shift)
     total_tickets_sold_instant = Column(Integer, nullable=False, default=0) # count
-    total_value_instant = Column(Integer, nullable=False, default=0) # DOLLARS (derived from Game.price which is dollars)
+    total_value_instant = Column(Integer, nullable=False, default=0) # NOW IN CENTS
 
     # Calculated Drawer Value for THIS Shift Submission (stored as cents)
     calculated_drawer_value = Column(Integer, nullable=False, default=0) # cents
@@ -102,7 +102,8 @@ class ShiftSubmission(Base):
         return (f"<ShiftSubmission(id={self.id}, user_id={self.user_id}, "
                 f"submission_datetime='{self.submission_datetime.strftime('%Y-%m-%d %H:%M:%S') if self.submission_datetime else 'N/A'}', "
                 f"calendar_date='{self.calendar_date.strftime('%Y-%m-%d') if self.calendar_date else 'N/A'}', "
-                f"calculated_drawer_value={self.calculated_drawer_value}, drawer_difference={self.drawer_difference})>")
+                f"total_value_instant_cents={self.total_value_instant}, " # Reflect unit change
+                f"calculated_drawer_value_cents={self.calculated_drawer_value}, drawer_difference_cents={self.drawer_difference})>")
 
 class Game(Base):
     """
@@ -112,7 +113,7 @@ class Game(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String, nullable=False, unique=False)
-    price = Column(Integer, nullable=False) # Assumed to be integer DOLLARS
+    price = Column(Integer, nullable=False) # Stored as CENTS (e.g., $1.00 is 100)
     total_tickets = Column(Integer, nullable=False)
     is_expired = Column(Boolean, nullable=False, default=False)
     default_ticket_order = Column(String, nullable=False, default=REVERSE_TICKET_ORDER)
@@ -123,11 +124,11 @@ class Game(Base):
     game_number = Column(Integer, nullable=False, unique=True)
 
     @property
-    def calculated_total_value(self) -> int: # Returns DOLLARS
+    def calculated_total_value(self) -> int: # Returns CENTS
         return (self.price * self.total_tickets) if self.price is not None and self.total_tickets is not None else 0
 
     def __repr__(self):
-        return (f"<Game(id={self.id}, name='{self.name}', price={self.price}, total_tickets={self.total_tickets}, "
+        return (f"<Game(id={self.id}, name='{self.name}', price_cents={self.price}, total_tickets={self.total_tickets}, "
                 f"game_number={self.game_number}, default_ticket_order='{self.default_ticket_order}', is_expired={self.is_expired})>")
 
 class Book(Base):
@@ -147,8 +148,8 @@ class Book(Base):
     game_id = Column(Integer, ForeignKey("games.id"), nullable=False)
     game = relationship("Game", back_populates="books")
 
-    # SalesEntry relationship will be updated when SalesEntry is defined
-    # sales_entries = relationship("SalesEntry", back_populates="book") # This will be adjusted
+    # Update Book model to correctly back_populate sales_entries from SalesEntry model
+    sales_entries = relationship("SalesEntry", back_populates="book") # This will be adjusted
 
     __table_args__ = (UniqueConstraint('game_id', 'book_number', name='_game_id_book_number_uc'),)
 
@@ -221,10 +222,11 @@ class Book(Base):
                 return self.game.total_tickets - self.current_ticket_number
 
     @property
-    def remaining_value(self) -> int: # Returns DOLLARS
+    def remaining_value(self) -> int: # Returns CENTS
         """Calculates the monetary value of the remaining tickets in the book."""
         if not self.game:
             return 0
+        # self.game.price is now in CENTS, so remaining_value will also be in CENTS.
         return self.remaining_tickets * self.game.price
 
     def __repr__(self):
@@ -244,7 +246,7 @@ class SalesEntry(Base):
     end_number = Column(Integer, nullable=False)   # Book's current_ticket_number AFTER this sale
     date = Column(DateTime, nullable=False, default=datetime.datetime.now)
     count = Column(Integer, nullable=False) # Calculated
-    price = Column(Integer, nullable=False) # Calculated (total for this entry, in DOLLARS if game.price is dollars)
+    price = Column(Integer, nullable=False) # Calculated (total for this entry, in CENTS)
 
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     book = relationship("Book", back_populates="sales_entries") # Relationship in Book model updated below
@@ -260,7 +262,7 @@ class SalesEntry(Base):
         Assumes self.book and self.book.game are populated.
         `start_number` is the book's state *before* this sale.
         `end_number` is the book's state *after* this sale.
-        Price is in DOLLARS if game.price is dollars.
+        Price is in CENTS because game.price is in CENTS.
         """
         if self.book and self.book.game:
             if self.book.ticket_order == REVERSE_TICKET_ORDER:
@@ -274,18 +276,16 @@ class SalesEntry(Base):
                 else:
                     self.count = self.end_number - self.start_number
 
-            self.price = self.count * self.book.game.price # price will be in dollars if game.price is dollars
+            # self.book.game.price is in CENTS, so self.price will be in CENTS.
+            self.price = self.count * self.book.game.price
         else:
             self.count = 0
             self.price = 0
 
     def __repr__(self):
-        return (f"<SalesEntry(id={self.id}, book_id={self.book_id}, shift_id={self.shift_id}, " # Updated from user_id
+        return (f"<SalesEntry(id={self.id}, book_id={self.book_id}, shift_id={self.shift_id}, "
                 f"start_number={self.start_number}, end_number={self.end_number}, "
-                f"date={self.date}, count={self.count}, price={self.price})>")
-
-# Update Book model to correctly back_populate sales_entries from SalesEntry model
-Book.sales_entries = relationship("SalesEntry", back_populates="book")
+                f"date={self.date}, count={self.count}, price_cents={self.price})>") # Updated __repr__
 
 
 class Configuration(Base):
