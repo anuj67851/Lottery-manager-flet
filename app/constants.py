@@ -19,6 +19,7 @@ REVERSE_TICKET_ORDER = "reverse"
 FORWARD_TICKET_ORDER = "forward"
 
 # Route Names
+FIRST_RUN_SETUP_ROUTE = "first_run_setup" # New Route
 LOGIN_ROUTE = "login"
 ADMIN_DASHBOARD_ROUTE = "admin_dashboard"
 EMPLOYEE_DASHBOARD_ROUTE = "employee_dashboard"

@@ -2,7 +2,6 @@ from typing import List, Dict, Tuple, Any
 
 import flet as ft
 from sqlalchemy.orm import Session
-import datetime # Required for datetime.datetime.now()
 
 from app.constants import (
     GAME_MANAGEMENT_ROUTE, ADMIN_DASHBOARD_ROUTE, BOOK_MANAGEMENT_ROUTE,
@@ -90,45 +89,35 @@ class AdminDashboardView(ft.Container):
 
 
     def _process_full_book_sale_batch(self, db: Session, items_to_process: List[Dict[str, Any]], current_user: User) -> Tuple[int, int, List[str]]:
-        # This method is now simpler, delegating shift creation and processing to ShiftService.
-        # The db session is managed by BookActionDialog's get_db_session context manager.
-
         book_ids_to_sell_this_batch: List[int] = []
         pre_check_errors: List[str] = []
 
         for item_data in items_to_process:
-            book_id = item_data.get('book_id') # Should be populated by BookActionDialog from book_model_ref.id
+            book_id = item_data.get('book_id')
             game_number = item_data.get('game_number_str', 'N/A')
             book_number = item_data.get('book_number_str', 'N/A')
 
             if book_id is None:
-                # This implies BookActionDialog couldn't resolve the book or it's a new book (not applicable for full sale)
                 pre_check_errors.append(f"Book {game_number}-{book_number}: Could not identify existing book ID for full sale.")
                 continue
             book_ids_to_sell_this_batch.append(book_id)
 
         if pre_check_errors:
-            # If there are critical errors before even calling the service, return them.
             return 0, len(items_to_process), pre_check_errors
 
         if not book_ids_to_sell_this_batch:
             return 0, 0, ["No valid books selected for full sale."]
 
         try:
-            # Call the ShiftService to handle the entire operation
             _created_shift, successful_sales_count, error_messages = \
                 self.shift_service.create_shift_for_admin_full_book_sales(
                     db=db,
                     admin_user_id=current_user.id,
                     book_ids_to_sell=book_ids_to_sell_this_batch
                 )
-
             failure_count = len(book_ids_to_sell_this_batch) - successful_sales_count
-            # error_messages from the service will detail per-book issues.
-
             return successful_sales_count, failure_count, error_messages
         except Exception as e_service_call:
-            # Catch unexpected errors from the service call itself
             return 0, len(book_ids_to_sell_this_batch), [f"Service error processing full book sales: {str(e_service_call)}"]
 
     def _process_activate_book_batch(self, db: Session, items_to_process: List[Dict[str, Any]], current_user: User) -> Tuple[int, int, List[str]]:
@@ -159,14 +148,13 @@ class AdminDashboardView(ft.Container):
 
 
     def _open_full_book_sale_dialog(self, e: ft.ControlEvent):
-        # ... (existing code for _open_full_book_sale_dialog - no direct changes needed here, callback is updated)
         dialog = BookActionDialog(
             page_ref=self.page,
             current_user_ref=self.current_user,
             dialog_title="Process Full Book Sale",
             action_button_text="Mark Books as Sold",
             action_type=BOOK_ACTION_FULL_SALE,
-            on_confirm_batch_callback=self._process_full_book_sale_batch, # This callback is now updated
+            on_confirm_batch_callback=self._process_full_book_sale_batch,
             game_service=self.game_service,
             book_service=self.book_service,
             require_ticket_scan=False
@@ -175,7 +163,6 @@ class AdminDashboardView(ft.Container):
 
 
     def _open_activate_book_dialog(self, e: ft.ControlEvent):
-        # ... (existing code for _open_activate_book_dialog)
         dialog = BookActionDialog(
             page_ref=self.page,
             current_user_ref=self.current_user,
@@ -190,28 +177,45 @@ class AdminDashboardView(ft.Container):
         dialog.open_dialog()
 
     def _handle_backup_database_click(self, e: ft.ControlEvent):
-        # ... (existing code for _handle_backup_database_click)
+        # Disable button to prevent multiple clicks while processing
+        backup_button: ft.Card = e.control.data # Assuming the card is passed as data or find it another way
+        if isinstance(backup_button, ft.Card) and isinstance(backup_button.content, ft.Container):
+            backup_button.content.disabled = True # type: ignore
+            if backup_button.page: backup_button.update()
+
+
+        self.page.splash = ft.ProgressBar(visible=True) # Show loading indicator
+        self.page.update()
+
         try:
             success, message = self.backup_service.create_database_backup()
             if success:
                 self.page.open(ft.SnackBar(
                     ft.Text(f"Database backup successful! Saved to: {message}"),
                     open=True,
-                    bgcolor=ft.Colors.GREEN_ACCENT_700
+                    bgcolor=ft.Colors.GREEN_ACCENT_700,
+                    duration=5000
                 ))
             else:
                 self.page.open(ft.SnackBar(
                     ft.Text(f"Database backup failed: {message}"),
                     open=True,
-                    bgcolor=ft.Colors.RED_ACCENT_700
+                    bgcolor=ft.Colors.RED_ACCENT_700,
+                    duration=7000 # Longer for errors
                 ))
         except Exception as ex:
             self.page.open(ft.SnackBar(
                 ft.Text(f"An unexpected error occurred during backup: {ex}"),
                 open=True,
-                bgcolor=ft.Colors.ERROR
+                bgcolor=ft.Colors.ERROR,
+                duration=7000
             ))
-        self.page.update()
+        finally:
+            self.page.splash = None # Hide loading indicator
+            if isinstance(backup_button, ft.Card) and isinstance(backup_button.content, ft.Container):
+                backup_button.content.disabled = False # type: ignore
+                if backup_button.page: backup_button.update()
+            self.page.update()
 
 
     def _build_sales_functions_quadrant(self) -> ft.Container:
@@ -255,7 +259,6 @@ class AdminDashboardView(ft.Container):
         )
 
     def _build_report_functions_quadrant(self) -> ft.Container:
-        # ... (existing code)
         buttons = [
             create_nav_card_button(
                 router=self.router, text="Sales by Date", icon_name=ft.Icons.CALENDAR_MONTH_ROUNDED,
@@ -285,18 +288,23 @@ class AdminDashboardView(ft.Container):
         )
 
     def _build_management_functions_quadrant(self) -> ft.Container:
-        # ... (existing code)
+        backup_button_card = create_nav_card_button(
+            router=self.router, text="Backup Database", icon_name=ft.Icons.SETTINGS_BACKUP_RESTORE_ROUNDED,
+            accent_color=ft.Colors.BLUE_800,
+            on_click_override=self._handle_backup_database_click, # Click override
+            tooltip="Create a backup of the application database", disabled=False
+        )
+        # Store the card itself or its clickable container in data to disable/enable it
+        if isinstance(backup_button_card.content, ft.Container):
+            backup_button_card.content.data = backup_button_card # Pass the card to itself for access
+
         buttons = [
             create_nav_card_button(
                 router=self.router, text="Manage Users", icon_name=ft.Icons.MANAGE_ACCOUNTS_ROUNDED,
                 accent_color=ft.Colors.INDIGO_700, navigate_to_route=ADMIN_USER_MANAGEMENT_ROUTE,
                 router_params=self.navigation_params_for_children,
                 tooltip="Manage Admin and Employee accounts", disabled=False),
-            create_nav_card_button(
-                router=self.router, text="Backup Database", icon_name=ft.Icons.SETTINGS_BACKUP_RESTORE_ROUNDED,
-                accent_color=ft.Colors.BLUE_800,
-                on_click_override=self._handle_backup_database_click,
-                tooltip="Create a backup of the application database", disabled=False),
+            backup_button_card, # Use the created card
         ]
         return self._create_section_quadrant(
             title="System Management", title_color=ft.Colors.DEEP_PURPLE_800,
@@ -305,7 +313,6 @@ class AdminDashboardView(ft.Container):
         )
 
     def _build_body(self) -> ft.Column:
-        # ... (existing code)
         divider_color = ft.Colors.with_opacity(0.3, ft.Colors.ON_SURFACE)
         divider_thickness = 2
         row1 = ft.Row(

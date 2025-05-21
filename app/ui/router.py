@@ -10,9 +10,11 @@ from app.ui.views.employee_dashboard_view import EmployeeDashboardView
 from app.ui.views.salesperson_dashboard_view import SalesPersonDashboardView
 from app.ui.views.admin.game_management import GameManagementView
 from app.ui.views.admin.book_management import BookManagementView
+from app.ui.views.first_run_setup_view import FirstRunSetupView # Import the new view
 
 # Import constants for route names
 from app.constants import (
+    FIRST_RUN_SETUP_ROUTE, # Added
     LOGIN_ROUTE, ADMIN_DASHBOARD_ROUTE, EMPLOYEE_DASHBOARD_ROUTE,
     SALESPERSON_DASHBOARD_ROUTE, GAME_MANAGEMENT_ROUTE, BOOK_MANAGEMENT_ROUTE, SALES_ENTRY_ROUTE,
     ADMIN_USER_MANAGEMENT_ROUTE, SALES_BY_DATE_REPORT_ROUTE, STOCK_LEVELS_REPORT_ROUTE, GAME_EXPIRY_REPORT_ROUTE,
@@ -23,6 +25,7 @@ class Router:
     def __init__(self, page: ft.Page):
         self.page = page
         self.routes = {
+            FIRST_RUN_SETUP_ROUTE: FirstRunSetupView, # Added
             LOGIN_ROUTE: LoginView,
             ADMIN_DASHBOARD_ROUTE: AdminDashboardView,
             EMPLOYEE_DASHBOARD_ROUTE: EmployeeDashboardView,
@@ -68,12 +71,13 @@ class Router:
                 self.page.controls.clear() # Clear potentially broken UI
                 self.page.add(ft.Text(f"Error loading page: {route_name}. Details: {e}", color=ft.Colors.RED))
                 # Optionally navigate to a known safe route like login
-                if route_name != LOGIN_ROUTE:
-                    self.navigate_to(LOGIN_ROUTE) # Avoid recursion if login itself fails
+                # Avoid infinite loop if FIRST_RUN_SETUP_ROUTE itself fails
+                if route_name != LOGIN_ROUTE and route_name != FIRST_RUN_SETUP_ROUTE:
+                    self.navigate_to(LOGIN_ROUTE)
         else:
             print(f"Error: Route '{route_name}' not found. Navigating to login as fallback.")
             self.page.controls.clear()
-            # Fallback to login view if route is unknown
+            # Fallback to login view if route is unknown (should ideally not happen if initial check is correct)
             login_view_class = self.routes[LOGIN_ROUTE]
             self.current_view_instance = login_view_class(page=self.page, router=self) # No params for login usually
             self.page.add(self.current_view_instance)

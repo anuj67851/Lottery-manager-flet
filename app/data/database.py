@@ -4,14 +4,9 @@ from typing import Any, Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from app.config import SQLALCHEMY_DATABASE_URL, DB_BASE_DIR, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD, VERSION
-from app.constants import SALESPERSON_ROLE, ADMIN_ROLE
-# Import all models, including the new ShiftSubmission
-from app.core.models import Base  # Added ShiftSubmission
+from app.config import SQLALCHEMY_DATABASE_URL, VERSION, LICENSE_FILE_PATH
+from app.core.models import Base
 from app.services import UserService, ConfigurationService
-
-# Ensure the database directory exists
-DB_BASE_DIR.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
@@ -33,39 +28,33 @@ def get_db_session() -> Generator[Session, Any, None]:
         db.close()
 
 def init_db():
+    # DB_BASE_DIR is already created by main.py at this point
     print(f"Initializing database at: {SQLALCHEMY_DATABASE_URL}")
-    # Base.metadata.create_all will now also create the 'shifts' table
-    # because ShiftSubmission is imported and inherits from Base.
     Base.metadata.create_all(bind=engine, checkfirst=True)
-    print("Database tables checked/created (including 'shifts' if new).")
+    print("Database tables checked/created.")
+
+    config_service = ConfigurationService()
+    config_service.ensure_license_file_exists(default_active_status=False)
+    print(f"License file checked/created at: {LICENSE_FILE_PATH}")
+
     try:
         with get_db_session() as db:
-            run_initialization_script(db)
-            print("Initialization script completed.")
+            run_initialization_script(db, config_service)
+        print("Initialization script completed.")
     except Exception as e:
         print(f"Error during database initialization script: {e}")
         raise
 
-
-def run_initialization_script(db: Session):
-    config_service = ConfigurationService()
+def run_initialization_script(db: Session, config_service: ConfigurationService):
     users_service = UserService()
 
     if not users_service.any_users_exist(db):
-        print("Running for first time. Populating Sales User Info...")
-        users_service.create_user(db, SALES_PERSON_USERNAME, SALES_PERSON_PASSWORD, SALESPERSON_ROLE)
-        print("Sales User Info populated.")
-        users_service.create_user(db, "admin", SALES_PERSON_PASSWORD, ADMIN_ROLE)
-        print("Default admin user created.")
+        print("Running for first time. No users found in the database.")
+        print("User setup (Salesperson) will need to be performed through the application interface on first launch.")
 
-    if not config_service.get_license(db):
-        print("Creating initial license record (active for dev)...")
-        config_service.create_license_if_not_exists(db, license_is_active=True)
-        print("Initial license record created.")
-
-    version_record = config_service.get_version(db) # Renamed 'version' to 'version_record'
+    version_record = config_service.get_version(db)
     if not version_record:
-        print("Creating version record...")
+        print("Creating version record in DB...")
         config_service.create_version(db)
         print("Version record created.")
     else:
@@ -73,13 +62,7 @@ def run_initialization_script(db: Session):
         try:
             current_db_version = float(current_db_version_str)
             print(f"Version record already exists. Current DB version: {current_db_version}")
-            # Migration logic (if VERSION from config.py is higher)
             if float(VERSION) > current_db_version:
-                print(f"Need to perform migration from {current_db_version} to {VERSION}. Running migration script...")
-                # Call your migration script/logic here if needed
-                # For now, just updating the version in DB as an example
-                # version_record.set_value(VERSION) # This should be part of a migration service
-                # db.commit() # If migration service doesn't handle its own commit
-                print(f"Placeholder: Version updated in DB to {VERSION}. Implement actual migration if schema changed beyond new tables.")
+                print(f"Need to perform migration from {current_db_version} to {VERSION}. Placeholder for migration.")
         except ValueError:
             print(f"Error: Could not parse database version '{current_db_version_str}' as float. Skipping migration check.")
