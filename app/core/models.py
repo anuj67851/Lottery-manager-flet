@@ -124,7 +124,7 @@ class Game(Base):
     expired_date = Column(DateTime, nullable=True)
 
     books = relationship("Book", back_populates="game")
-    game_number = Column(Integer, nullable=False, unique=True)
+    game_number = Column(Integer, nullable=False, unique=True, index=True)
 
     @property
     def calculated_total_value(self) -> int: # Returns CENTS
@@ -141,7 +141,7 @@ class Book(Base):
     __tablename__ = "books"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    book_number = Column(String(7), nullable=False) # Preserves leading zeros
+    book_number = Column(String(7), nullable=False, index=True) # Preserves leading zeros
     ticket_order = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, default=False)
     activate_date = Column(DateTime, nullable=True)
@@ -247,14 +247,13 @@ class SalesEntry(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     start_number = Column(Integer, nullable=False) # Book's current_ticket_number BEFORE this sale
     end_number = Column(Integer, nullable=False)   # Book's current_ticket_number AFTER this sale
-    date = Column(DateTime, nullable=False, default=datetime.datetime.now)
+    date = Column(DateTime, nullable=False, default=datetime.datetime.now, index=True)
     count = Column(Integer, nullable=False) # Calculated
     price = Column(Integer, nullable=False) # Calculated (total for this entry, in CENTS)
 
     book_id = Column(Integer, ForeignKey("books.id"), nullable=False)
     book = relationship("Book", back_populates="sales_entries") # Relationship in Book model updated below
 
-    # Changed from user_id to shift_id
     shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=False, index=True)
     shift = relationship("ShiftSubmission", back_populates="sales_entries")
 
