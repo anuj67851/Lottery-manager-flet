@@ -15,6 +15,8 @@ from app.ui.components.tables.sales_entry_item_data import SalesEntryItemData
 from app.ui.components.common.scan_input_handler import ScanInputHandler
 from app.ui.components.widgets import NumberDecimalField
 
+import logging
+logger = logging.getLogger(__name__)
 
 class SalesEntryView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User, license_status: bool,
@@ -184,7 +186,7 @@ class SalesEntryView(ft.Container):
         except Exception as ex_submit:
             self.page.banner.open = False; error_detail = f"{type(ex_submit).__name__}: {ex_submit}"
             self.page.open(ft.SnackBar(ft.Text(f"Failed to submit shift: {error_detail}"), open=True, bgcolor=ft.Colors.ERROR, duration=10000))
-            print(f"Shift submission execution error: {error_detail}")
+            logger.error(f"Shift submission execution error: {error_detail}", exc_info=True)
         finally:
             if self.scan_input_handler: self.scan_input_handler.focus_input()
             if self.page: self.page.update()

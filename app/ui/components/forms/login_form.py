@@ -1,3 +1,5 @@
+import logging
+
 import flet as ft
 from typing import Callable, Optional
 
@@ -7,6 +9,8 @@ from app.services.auth_service import AuthService # Use AuthService
 from app.data.database import get_db_session
 from app.core.exceptions import AuthenticationError, ValidationError
 from app.core.models import User
+
+logger = logging.getLogger(__name__)
 
 class LoginForm(ft.Container):
     def __init__(self, page: ft.Page, on_login_success: Callable[[User], None]):
@@ -94,12 +98,12 @@ class LoginForm(ft.Container):
             self.error_text.value = ex.message
             self.error_text.visible = True
         except DetachedInstanceError as di_err: # Specific SQLAlchemy error
-            print(f"SQLAlchemy DetachedInstanceError during/after login success: {di_err}")
+            logger.error(f"SQLAlchemy DetachedInstanceError during/after login success: {di_err}", exc_info=True)
             self.error_text.value = "Login successful, but a session error occurred. Please retry."
             # Consider a more user-friendly message or specific recovery if possible.
             self.error_text.visible = True
         except Exception as ex_general: # Catch any other unexpected errors
-            print(f"Unexpected error in login: {ex_general}")
+            logger.error(f"Unexpected error in login: {ex_general}", exc_info=True)
             self.error_text.value = "An unexpected error occurred. Please try again."
             self.error_text.visible = True
 

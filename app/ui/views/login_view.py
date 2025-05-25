@@ -13,6 +13,9 @@ from app.core.models import User
 from app.ui.components.common.appbar_factory import create_appbar
 from app.config import APP_TITLE, VERSION
 
+import logging
+logger = logging.getLogger(__name__)
+
 class LoginView(ft.Container):
     def __init__(self, page: ft.Page, router, **params):
         super().__init__(expand=True, alignment=ft.alignment.center)
@@ -84,7 +87,7 @@ class LoginView(ft.Container):
             # License status is now read from the file via ConfigurationService
             license_activated = self.config_service.get_license_status()
         except Exception as e:
-            print(f"Error fetching license status from file: {e}")
+            logger.error(f"Error fetching license status from file: {e}", exc_info=True)
             self.page.open(ft.SnackBar(ft.Text("Could not verify license status. Please try again."), open=True, bgcolor=ft.Colors.ERROR))
             return
 

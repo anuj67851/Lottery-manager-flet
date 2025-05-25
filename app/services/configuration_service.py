@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.orm import Session
 import os
 from cryptography.fernet import Fernet, InvalidToken # For encryption
@@ -6,6 +8,8 @@ from app.config import VERSION, VERSION_CONFIG, LICENSE_FILE_PATH, LICENSE_ENCRY
 from app.data import crud_configurations
 from app.core.models import Configuration
 from app.core.exceptions import DatabaseError, AppException
+
+logger = logging.getLogger(__name__)
 
 class LicenseFileError(AppException):
     """Custom exception for license file operations."""
@@ -35,11 +39,11 @@ class ConfigurationService:
             # Given it's named _KEY, let's assume it's a direct Fernet key.
             self.fernet = Fernet(LICENSE_ENCRYPTION_KEY)
         except ValueError as e:
-            print(f"CRITICAL: Invalid LICENSE_ENCRYPTION_KEY format for Fernet: {e}. Ensure it's a URL-safe base64-encoded 32-byte key.")
+            logger.error(f"CRITICAL: Invalid LICENSE_ENCRYPTION_KEY format for Fernet: {e}. Ensure it's a URL-safe base64-encoded 32-byte key.", exc_info=True)
             # Fallback to a dummy fernet object to prevent app crash, though encryption will be broken.
             # In a real scenario, you might want to halt the app or use a default (insecure) key.
             dummy_key = Fernet.generate_key()
-            print(f"Warning: Using a dummy encryption key due to invalid configured key. License security compromised. Dummy key: {dummy_key.decode()}")
+            logger.error(f"Warning: Using a dummy encryption key due to invalid configured key. License security compromised. Dummy key: {dummy_key.decode()}", exc_info=True)
             self.fernet = Fernet(dummy_key)
 
 
@@ -57,17 +61,17 @@ class ConfigurationService:
             status_str = decrypted_data.decode().strip().lower()
             return status_str == "true"
         except InvalidToken: # This means decryption failed (bad key, or tampered/corrupt file)
-            print(f"Error: License file at {LICENSE_FILE_PATH} is tampered, corrupt, or encrypted with a different key.")
+            logger.error(f"Error: License file at {LICENSE_FILE_PATH} is tampered, corrupt, or encrypted with a different key.")
             # Optionally, delete or rename the invalid file to force recreation with default.
             # For now, treat as inactive.
             try:
                 os.remove(LICENSE_FILE_PATH)
-                print(f"Removed invalid license file: {LICENSE_FILE_PATH}")
+                logger.warning(f"Removed invalid license file: {LICENSE_FILE_PATH}")
             except OSError as ose:
-                print(f"Could not remove invalid license file {LICENSE_FILE_PATH}: {ose}")
+                logger.error(f"Could not remove invalid license file {LICENSE_FILE_PATH}: {ose}", exc_info=True)
             return False
         except Exception as e:
-            print(f"Error reading or decrypting license file {LICENSE_FILE_PATH}: {type(e).__name__} - {e}")
+            logger.error(f"Error reading or decrypting license file {LICENSE_FILE_PATH}: {type(e).__name__} - {e}", exc_info=True)
             return False
 
     def _write_license_status_to_file(self, is_active: bool) -> None:
@@ -83,10 +87,10 @@ class ConfigurationService:
     def ensure_license_file_exists(self, default_active_status: bool = False) -> None:
         if not LICENSE_FILE_PATH.exists():
             try:
-                print(f"License file not found at {LICENSE_FILE_PATH}. Creating with encrypted status: {'Active' if default_active_status else 'Inactive'}")
+                logger.warning(f"License file not found at {LICENSE_FILE_PATH}. Creating with encrypted status: {'Active' if default_active_status else 'Inactive'}")
                 self._write_license_status_to_file(default_active_status)
             except LicenseFileError as e:
-                print(f"CRITICAL: Failed to create initial encrypted license file: {e.message}")
+                logger.error(f"CRITICAL: Failed to create initial encrypted license file: {e.message}", exc_info=True)
                 pass
 
     def get_license_status(self) -> bool:

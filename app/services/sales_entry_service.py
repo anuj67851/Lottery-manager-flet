@@ -1,4 +1,5 @@
 import datetime
+import logging
 from typing import List, Dict, Tuple, Optional, Any
 
 from sqlalchemy.orm import Session, joinedload
@@ -8,6 +9,7 @@ from app.core.exceptions import ValidationError, DatabaseError, GameNotFoundErro
 from app.core.models import Book, SalesEntry, Game as GameModel, ShiftSubmission # Added ShiftSubmission
 from app.data import crud_books, crud_games, crud_sales_entries
 
+logger = logging.getLogger(__name__)
 
 class SalesEntryService:
     def get_active_books_for_sales_display(self, db: Session) -> List[Book]:
@@ -41,7 +43,7 @@ class SalesEntryService:
                 new_book.activate_date = datetime.datetime.now()
                 # db.flush() # Let ShiftService manage flushes within its transaction
                 # db.refresh(new_book, attribute_names=['game']) # Refresh if needed for immediate use
-                print(f"SalesEntryService: Created/activated new book: ID {new_book.id}, Num {new_book.book_number}, Initial Ticket: {new_book.current_ticket_number}")
+                logger.info(f"SalesEntryService: Created/activated new book: ID {new_book.id}, Num {new_book.book_number}, Initial Ticket: {new_book.current_ticket_number}")
                 return new_book
             except (DatabaseError, ValidationError) as e:
                 raise DatabaseError(f"Could not create book {game_number_str}-{book_number_str} for sale: {e.message if hasattr(e, 'message') else e}")
@@ -56,7 +58,7 @@ class SalesEntryService:
                 book.is_active = True
                 book.activate_date = datetime.datetime.now()
                 book.finish_date = None
-                print(f"SalesEntryService: Activated existing book for sale: {book.book_number}, Current Ticket: {book.current_ticket_number}")
+                logger.info(f"SalesEntryService: Activated existing book for sale: {book.book_number}, Current Ticket: {book.current_ticket_number}")
             return book
 
     def create_sales_entry_for_full_book(self, db: Session, book: Book, shift_id: int) -> SalesEntry: # Changed user_id to shift_id
@@ -87,7 +89,7 @@ class SalesEntryService:
         sales_entry.calculate_count_and_price()
 
         if sales_entry.count != book.game.total_tickets:
-            print(f"Warning: Full book sale for Book ID {book.id} resulted in count {sales_entry.count}, expected {book.game.total_tickets}.")
+            logger.warning(f"Warning: Full book sale for Book ID {book.id} resulted in count {sales_entry.count}, expected {book.game.total_tickets}.")
 
         return crud_sales_entries.create_sales_entry(db, sales_entry)
 
@@ -178,7 +180,7 @@ class SalesEntryService:
                     new_sales_entry.calculate_count_and_price()
 
                     if new_sales_entry.count != calculated_tickets_for_this_entry:
-                        print(f"Warning: Discrepancy in tickets for Book {book.book_number} (Shift {shift_id}). Service: {calculated_tickets_for_this_entry}, Model: {new_sales_entry.count}. Using Model.")
+                        logger.warning(f"Warning: Discrepancy in tickets for Book {book.book_number} (Shift {shift_id}). Service: {calculated_tickets_for_this_entry}, Model: {new_sales_entry.count}. Using Model.")
 
                     if new_sales_entry.count >= 0:
                         crud_sales_entries.create_sales_entry(db, new_sales_entry)
@@ -210,7 +212,7 @@ class SalesEntryService:
                     if not detail.get("_book_already_counted_as_updated"):
                         updated_books_count += 1 # Count as updated if status changed
                         detail["_book_already_counted_as_updated"] = True
-                    print(f"Book {book.book_number} (Shift {shift_id}) deactivated after sales processing.")
+                    logger.info(f"Book {book.book_number} (Shift {shift_id}) deactivated after sales processing.")
                 elif not book.finish_date:
                     book.finish_date = datetime.datetime.now()
 

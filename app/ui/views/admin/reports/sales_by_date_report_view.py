@@ -2,7 +2,7 @@ import flet as ft
 import datetime
 from typing import List, Optional, Dict, Any
 
-from app.constants import ADMIN_DASHBOARD_ROUTE
+from app.constants import ADMIN_DASHBOARD_ROUTE, ADMIN_ROLE, EMPLOYEE_ROLE
 from app.core.models import User
 from app.services import UserService, ReportService
 from app.data.database import get_db_session
@@ -64,8 +64,8 @@ class SalesByDateReportView(ft.Container):
         self.summary_total_drawer_difference_widget = ft.Text("Total Drawer Diff: $0.00", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD)
 
         sales_entries_column_definitions: List[Dict[str, Any]] = [
-            {"key": "sales_entry_creation_date", "label": "Date/Time", "sortable": True, "display_formatter": lambda val, item: ft.Text(val.strftime('%H:%M:%S') if isinstance(val, datetime.datetime) else "", size=12.5)},
-            {"key": "user_via_shift_display", "label": "User (via Shift)", "sortable": True, "custom_sort_value_getter": lambda item: (item.get("shift_submission_datetime"), item.get("username")), "display_formatter": lambda val, item: ft.Text(f"{item.get('shift_submission_datetime').strftime('%Y-%m-%d %H:%M') if item.get('shift_submission_datetime') else ''} {item.get('username', '')}".strip(), size=12.5)},
+            {"key": "sales_entry_creation_date", "label": "Date/Time", "sortable": True, "display_formatter": lambda val, item: ft.Text(val.strftime('%Y-%m-%d %H:%M:%S') if isinstance(val, datetime.datetime) else "", size=12.5)},
+            {"key": "user_via_shift_display", "label": "User (via Shift)", "sortable": True, "custom_sort_value_getter": lambda item: item.get("username"), "display_formatter": lambda val, item: ft.Text(f"{item.get('username', '')}".strip(), size=12.5)},
             {"key": "game_name", "label": "Game", "sortable": True, "searchable": True, "display_formatter": lambda val, item: ft.Text(str(val) if val is not None else "", size=12.5)},
             {"key": "book_display", "label": "Book #", "sortable": True, "custom_sort_value_getter": lambda item: (item.get("game_number_actual"), item.get("book_number_actual")), "searchable": True, "display_formatter": lambda val, item: ft.Text(f"{item.get('game_number_actual', 'GA')}-{item.get('book_number_actual', 'BK')}", size=12.5)},
             {"key": "ticket_order", "label": "Order", "sortable": False, "display_formatter": lambda val, item: ft.Text(str(val).capitalize() if val is not None else "", size=12.5)},
@@ -84,7 +84,6 @@ class SalesByDateReportView(ft.Container):
         shifts_summary_column_definitions: List[Dict[str, Any]] = [
             {"key": "submission_datetime", "label": "Submission Time", "sortable": True, "display_formatter": lambda val, item: ft.Text(val.strftime("%Y-%m-%d %H:%M") if val else "", size=12.5)},
             {"key": "user_name", "label": "User", "sortable": True, "searchable": True, "display_formatter": lambda val, item: ft.Text(str(val), size=12.5)},
-            {"key": "calendar_date", "label": "Cal. Date", "sortable": True, "display_formatter": lambda val, item: ft.Text(val.strftime("%Y-%m-%d") if val else "", size=12.5)},
             # All following shift monetary values are CENTS from the service
             {"key": "calculated_delta_online_sales", "label": "Δ Online Sales ($)", "numeric": True, "display_formatter": lambda val_cents, item: ft.Text(f"{(val_cents/100.0):.2f}", size=12.5)},
             {"key": "calculated_delta_online_payouts", "label": "Δ Online Payouts ($)", "numeric": True, "display_formatter": lambda val_cents, item: ft.Text(f"{(val_cents/100.0):.2f}", size=12.5)},
@@ -147,7 +146,7 @@ class SalesByDateReportView(ft.Container):
 
     def _load_initial_filters(self):
         try:
-            with get_db_session() as db: self.all_users_for_filter = self.user_service.get_all_users(db)
+            with get_db_session() as db: self.all_users_for_filter = self.user_service.get_users_by_roles(db, [ADMIN_ROLE, EMPLOYEE_ROLE])
             options = [ft.dropdown.Option(key="", text="All Users")]
             options.extend([ft.dropdown.Option(key=str(user.id), text=user.username) for user in self.all_users_for_filter])
             self.user_filter_dropdown.options = options; self.user_filter_dropdown.value = ""
@@ -222,6 +221,12 @@ class SalesByDateReportView(ft.Container):
         self.summary_total_instant_payouts_widget.value = f"Total Instant Payouts: ${self.aggregated_shift_totals_cache.get('sum_delta_instant_payouts', 0.0):.2f}"
         self.summary_total_calculated_drawer_widget.value = f"Total Calc. Drawer: ${self.aggregated_shift_totals_cache.get('sum_calculated_drawer_value', 0.0):.2f}"
         self.summary_total_drawer_difference_widget.value = f"Total Drawer Diff: ${self.aggregated_shift_totals_cache.get('sum_drawer_difference', 0.0):.2f}"
+
+        if self.aggregated_shift_totals_cache.get('sum_drawer_difference', 0.0) > 0:
+            self.summary_total_drawer_difference_widget.color = ft.Colors.RED_ACCENT_700
+        else:
+            self.summary_total_drawer_difference_widget.color = ft.Colors.GREEN_ACCENT_700
+
         for widget in [self.summary_total_instant_sales_widget, self.summary_total_instant_tickets_widget, self.summary_total_online_sales_widget, self.summary_total_online_payouts_widget, self.summary_total_instant_payouts_widget, self.summary_total_calculated_drawer_widget, self.summary_total_drawer_difference_widget]:
             if widget.page: widget.update()
 

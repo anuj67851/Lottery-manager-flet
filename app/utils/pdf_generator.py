@@ -11,6 +11,8 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
 )
 
+import logging
+logger = logging.getLogger(__name__)
 
 class PDFGenerator:
     def __init__(self, file_path: str, page_size=letter, company_name="Your Company", logo_path=None):
@@ -36,6 +38,7 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(name='SummaryTotal', fontName=bold_font, fontSize=8, leading=11, alignment=TA_RIGHT, textColor=colors.darkblue))
         self.styles.add(ParagraphStyle(name='SummaryLabel', fontName=base_font, fontSize=8, leading=11, alignment=TA_LEFT, textColor=colors.black))
         self.styles.add(ParagraphStyle(name='SummaryValue', fontName=bold_font, fontSize=8, leading=11, alignment=TA_RIGHT, textColor=colors.black))
+        self.styles.add(ParagraphStyle(name='DrawerValue', fontName=base_font, fontSize=8, leading=11, alignment=TA_RIGHT))
 
     def build_pdf(self):
         left_margin = right_margin = 0.5 * inch; top_margin = bottom_margin = 0.5 * inch
@@ -44,7 +47,7 @@ class PDFGenerator:
         doc = SimpleDocTemplate(self.file_path, pagesize=self.page_size, leftMargin=left_margin, rightMargin=right_margin, topMargin=top_margin, bottomMargin=bottom_margin, title=f"{doc_title_safe} - {datetime.datetime.now().strftime('%Y-%m-%d')}", author=self.company_name )
         try: doc.build(self.story)
         except Exception as e:
-            print(f"Warning: Error occurred during PDF building: {e}")
+            logger.warning(f"Warning: Error occurred during PDF building: {e}")
             c = canvas.Canvas(self.file_path, pagesize=self.page_size)
             c.setFont("Helvetica-Bold", 16); c.drawString(left_margin, self.page_size[1] - top_margin - 20, f"Report - {datetime.datetime.now().strftime('%Y-%m-%d')}")
             c.line(left_margin, self.page_size[1] - top_margin - 30, self.page_size[0] - right_margin, self.page_size[1] - top_margin - 30)

@@ -1,3 +1,4 @@
+import logging
 from math import ceil
 from typing import List, Callable, Optional, Any, Dict, TypeVar, Generic
 import flet as ft
@@ -6,6 +7,7 @@ import inspect
 
 from app.data.database import get_db_session
 
+logger = logging.getLogger(__name__)
 T = TypeVar('T')
 
 class PaginatedDataTable(ft.Container, Generic[T]):
@@ -165,7 +167,7 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             self._current_page_number = 1
             self._filter_and_sort_displayed_data(self._last_search_term)
         else:
-            print(f"Warning: Sort key not found for column label '{clicked_label}'")
+            logger.warning(f"Warning: Sort key not found for column label '{clicked_label}'")
 
 
     def _get_sort_value_for_item(self, item: T, sort_key: str) -> Any:
@@ -406,7 +408,7 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             self._filter_and_sort_displayed_data(search_term)
 
         except Exception as e:
-            print(f"Error refreshing data for table: {e}")
+            logger.error(f"Error refreshing data for table: {e}", exc_info=True)
             self._all_unfiltered_data = [] # Clear data on error to show "No data" message
             self._filter_and_sort_displayed_data("") # This will call _update_datatable_rows
             if self.page:

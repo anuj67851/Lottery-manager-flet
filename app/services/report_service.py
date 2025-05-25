@@ -1,6 +1,8 @@
 import datetime
+import logging
 from typing import List, Optional, Tuple, Dict, Any
 
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph
@@ -10,7 +12,7 @@ from app.data import crud_reports, crud_games
 from app.utils.pdf_generator import PDFGenerator
 from app.config import DB_BASE_DIR
 from app.core.models import Game, ShiftSubmission, User as UserModel
-
+logger = logging.getLogger(__name__)
 class ReportService:
     def get_sales_report_data(
             self,
@@ -118,6 +120,13 @@ class ReportService:
             pdf_gen.add_section_title("Overall Summary for Period"); pdf_gen.add_spacer(6)
 
             # aggregated_shift_totals are already in DOLLARS. total_instant_sales_value_dollars is also in DOLLARS.
+            drawer_short = False
+            drawer_style = pdf_gen.styles['DrawerValue']
+            drawer_style.textColor = colors.green
+            if aggregated_shift_totals.get('sum_drawer_difference', 0) > 0:
+                drawer_short = True
+                drawer_style.textColor = colors.red
+
             summary_table_data = [
                 [Paragraph("<b>Metric</b>", pdf_gen.styles['TableCell']), Paragraph("<b>Total Value</b>", pdf_gen.styles['TableCellRight'])],
                 [Paragraph("Total Online Sales:", pdf_gen.styles['TableCell']), Paragraph(f"${aggregated_shift_totals.get('sum_delta_online_sales', 0):.2f}", pdf_gen.styles['TableCellRight'])],
@@ -125,7 +134,7 @@ class ReportService:
                 [Paragraph("Total Instant Game Sales:", pdf_gen.styles['TableCell']), Paragraph(f"${total_instant_sales_value_dollars:.2f}", pdf_gen.styles['TableCellRight'])],
                 [Paragraph("Total Instant Game Payouts:", pdf_gen.styles['TableCell']), Paragraph(f"${aggregated_shift_totals.get('sum_delta_instant_payouts', 0):.2f}", pdf_gen.styles['TableCellRight'])],
                 [Paragraph("<b>Total Calculated Drawer Value (All Shifts):</b>", pdf_gen.styles['SummaryTotal']), Paragraph(f"<b>${aggregated_shift_totals.get('sum_calculated_drawer_value', 0):.2f}</b>", pdf_gen.styles['SummaryTotal'])],
-                [Paragraph("<b>Total Drawer Difference (All Shifts):</b>", pdf_gen.styles['SummaryTotal']), Paragraph(f"<b>${aggregated_shift_totals.get('sum_drawer_difference', 0):.2f}</b>", pdf_gen.styles['SummaryTotal'])],
+                [Paragraph("<b>Total Drawer Difference (All Shifts):</b>", pdf_gen.styles['SummaryTotal']), Paragraph(f"<b>${aggregated_shift_totals.get('sum_drawer_difference', 0):.2f} {'(S)' if drawer_short else '(O)'}</b>", drawer_style)],
             ]
             page_width, _ = landscape(letter); available_width_summary = page_width - 1.0 * inch
             summary_col_widths = [available_width_summary * 0.7, available_width_summary * 0.3]
@@ -154,7 +163,7 @@ class ReportService:
             pdf_gen.build_pdf()
             return True, str(pdf_save_path)
         except Exception as e:
-            print(f"Error generating Sales & Shift PDF: {e}")
+            logger.error(f"Error generating Sales & Shift PDF: {e}", exc_info=True)
             return False, f"Failed to generate PDF: {e}"
 
     def get_book_open_report_data(self, db: Session, game_id_filter: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -175,7 +184,7 @@ class ReportService:
             pdf_gen.build_pdf()
             return True, str(pdf_save_path)
         except Exception as e:
-            print(f"Error generating Book Open Report PDF: {e}"); return False, f"Failed to generate PDF: {e}"
+            logger.error(f"Error generating Book Open Report PDF: {e}", exc_info=True); return False, f"Failed to generate PDF: {e}"
 
     def get_game_expiry_report_data( self, db: Session, status_filter: Optional[str] = None, expired_start_date: Optional[datetime.datetime] = None, expired_end_date: Optional[datetime.datetime] = None ) -> List[Dict[str, Any]]:
         # crud_reports.get_game_expiry_report_data returns Game.price in CENTS
@@ -194,7 +203,7 @@ class ReportService:
             pdf_gen.build_pdf()
             return True, str(pdf_save_path)
         except Exception as e:
-            print(f"Error generating Game Expiry Report PDF: {e}"); return False, f"Failed to generate PDF: {e}"
+            logger.error(f"Error generating Game Expiry Report PDF: {e}", exc_info=True); return False, f"Failed to generate PDF: {e}"
 
     def get_stock_levels_report_data(self, db: Session, game_id_filter: Optional[int] = None) -> List[Dict[str, Any]]:
         # crud_reports.get_stock_levels_report_data returns game_price_per_ticket and active_stock_value in CENTS
@@ -214,7 +223,7 @@ class ReportService:
             pdf_gen.build_pdf()
             return True, str(pdf_save_path)
         except Exception as e:
-            print(f"Error generating Stock Levels Report PDF: {e}"); return False, f"Failed to generate PDF: {e}"
+            logger.error(f"Error generating Stock Levels Report PDF: {e}", exc_info=True); return False, f"Failed to generate PDF: {e}"
 
     def get_all_games_for_filter(self, db: Session) -> List[Game]:
         return crud_games.get_all_games_sort_by_expiration_prices(db)

@@ -12,6 +12,9 @@ from app.ui.views.admin.game_management import GameManagementView
 from app.ui.views.admin.book_management import BookManagementView
 from app.ui.views.first_run_setup_view import FirstRunSetupView # Import the new view
 
+import logging
+logger = logging.getLogger(__name__)
+
 # Import constants for route names
 from app.constants import (
     FIRST_RUN_SETUP_ROUTE, # Added
@@ -46,8 +49,6 @@ class Router:
         """
         Navigates to the specified route, clearing the page and instantiating the new view.
         """
-        print(f"Navigating to '{route_name}' with params: {params}")
-
         # Clear previous view's specific elements if they exist and route is changing
         if self.current_route_name != route_name:
             self.page.controls.clear()
@@ -66,7 +67,7 @@ class Router:
                 self.current_view_instance = view_class(page=self.page, router=self, **params)
                 self.page.add(self.current_view_instance)
             except Exception as e:
-                print(f"Error instantiating view for route '{route_name}': {e}")
+                logger.error(f"Error instantiating view for route '{route_name}': {e}", exc_info=True)
                 # Fallback or error display logic
                 self.page.controls.clear() # Clear potentially broken UI
                 self.page.add(ft.Text(f"Error loading page: {route_name}. Details: {e}", color=ft.Colors.RED))
@@ -75,7 +76,7 @@ class Router:
                 if route_name != LOGIN_ROUTE and route_name != FIRST_RUN_SETUP_ROUTE:
                     self.navigate_to(LOGIN_ROUTE)
         else:
-            print(f"Error: Route '{route_name}' not found. Navigating to login as fallback.")
+            logger.error(f"Error: Route '{route_name}' not found. Navigating to login as fallback.", exc_info=True)
             self.page.controls.clear()
             # Fallback to login view if route is unknown (should ideally not happen if initial check is correct)
             login_view_class = self.routes[LOGIN_ROUTE]

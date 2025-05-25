@@ -1,3 +1,4 @@
+import logging
 import threading
 import time # For delayed_focus
 
@@ -20,7 +21,7 @@ from app.data import crud_games
 from app.ui.components.widgets import NumberDecimalField
 from app.ui.components.common.scan_input_handler import ScanInputHandler
 
-
+logger = logging.getLogger(__name__)
 class TempBookActionItem:
     def __init__(self, game_model: GameModel, book_number_str: str,
                  book_model_ref: Optional[BookModel] = None,
@@ -212,7 +213,7 @@ class BookActionDialog(ft.AlertDialog):
             self.page.close(self)
             final_message = f"{success_count} book(s) processed successfully."
             if failure_count > 0: final_message += f" {failure_count} book(s) failed."
-            if error_messages: print(f"Book Action Dialog - Batch Errors for '{self.dialog_title_text}': {error_messages}"); final_message += " (See console for details on failures)."
+            if error_messages: logger.error(f"Book Action Dialog - Batch Errors for '{self.dialog_title_text}': {error_messages}", exc_info=True); final_message += " (See logs for details on failures)."
             self.page.open(ft.SnackBar(ft.Text(final_message), open=True, duration=7000 if error_messages else 4000))
             if success_count > 0 and self.on_success_trigger_refresh: self.on_success_trigger_refresh()
         except Exception as ex_batch:

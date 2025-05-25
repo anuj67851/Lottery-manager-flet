@@ -11,6 +11,8 @@ from app.ui.components.common.dialog_factory import create_confirmation_dialog, 
 from app.ui.components.widgets import NumberDecimalField # For edit dialog potentially
 from app.constants import REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER
 
+import logging
+logger = logging.getLogger(__name__)
 class BooksTable(PaginatedDataTable[Book]):
     def __init__(self, page: ft.Page, book_service: BookService,
                  on_data_changed_stats: Optional[Callable[[int, int, int], None]] = None):
@@ -218,7 +220,7 @@ class BooksTable(PaginatedDataTable[Book]):
             self._current_page_number = 1
             self._filter_and_sort_displayed_data(search_term)
         except Exception as e:
-            print(f"Error refreshing data for BooksTable: {e}")
+            logger.error(f"Error refreshing data for BooksTable: {e}", exc_info=True)
             if self.page: self.page.open(ft.SnackBar(ft.Text(f"Error loading book data: {type(e).__name__}"), open=True, bgcolor=ft.Colors.ERROR))
 
     def _confirm_delete_book_dialog(self, book: Book):

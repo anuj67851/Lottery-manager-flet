@@ -1,4 +1,3 @@
-# Filename: app/ui/components/common/search_bar_component.py
 import threading
 from typing import Callable, Optional
 import flet as ft

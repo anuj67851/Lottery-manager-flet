@@ -1,6 +1,7 @@
 from typing import Any, Optional, Dict, Callable # Added Callable
 import flet as ft
-
+import logging
+logger = logging.getLogger(__name__)
 def create_nav_card_button(
         router: Any,  # Can be your app's Router instance or page for page.go
         text: str,
@@ -28,15 +29,14 @@ def create_nav_card_button(
         if on_click_override:
             on_click_override(e)
         elif navigate_to_route:
-            # print(f"NavCard Clicked: Navigating to {navigate_to_route} with params {effective_router_params}")
             if hasattr(router, 'navigate_to'):
                 router.navigate_to(navigate_to_route, **effective_router_params)
             elif hasattr(router, 'go'): # For Flet's page.go
                 router.go(navigate_to_route)
             else:
-                print("Router object not recognized or navigation method missing.")
+                logger.warning("Router object not recognized or navigation method missing.")
         else:
-            print(f"NavCard '{text}' clicked, but no navigation route or override handler defined.")
+            logger.error(f"NavCard '{text}' clicked, but no navigation route or override handler defined.")
 
 
     button_internal_content = ft.Column(

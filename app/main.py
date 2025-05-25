@@ -17,32 +17,43 @@ def setup_logging():
     """Configures logging for the application with daily rotation."""
     logger.setLevel(logging.INFO)
 
+    # Ensure the logs directory exists before creating the log file
+    try:
+        LOGS_BASE_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"ERROR: Could not create logs directory at {LOGS_BASE_DIR.resolve()}. Error: {e}")
+        # Fall back to console-only logging
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_formatter = logging.Formatter('%(levelname)s: %(message)s')
+        console_handler.setFormatter(console_formatter)
+        console_handler.setLevel(logging.DEBUG)
+        logger.addHandler(console_handler)
+        logger.warning(f"Logging directory creation failed. Using console-only logging.")
+        return
+
     # Base log filename. TimedRotatingFileHandler will append date to rotated files.
     base_log_filename = f"{APP_TITLE.lower().replace(' ', '_')}.log"
     log_file_path = LOGS_BASE_DIR.joinpath(base_log_filename)
 
     # --- TimedRotatingFileHandler for daily rotation ---
-    # when='midnight': Rotate at midnight.
-    # interval=1: Rotate daily.
-    # backupCount=7: Keep the last 7 rotated log files.
-    # encoding='utf-8': Specify encoding.
-    # delay=True: Defer file opening until the first log message if using Python 3.7+
-    # (useful if directory might not exist immediately, but we create DB_BASE_DIR first).
-    # utc=False: Use local time for rotation scheduling.
-    timed_file_handler = logging.handlers.TimedRotatingFileHandler(
-        log_file_path,
-        when='midnight',
-        interval=1,
-        backupCount=15, # Keep logs for 15 days, adjust as needed
-        encoding='utf-8',
-        delay=False, # Set to False as we ensure directory exists
-        utc=False
-    )
-    file_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s'
-    )
-    timed_file_handler.setFormatter(file_formatter)
-    logger.addHandler(timed_file_handler)
+    try:
+        timed_file_handler = logging.handlers.TimedRotatingFileHandler(
+            log_file_path,
+            when='midnight',
+            interval=1,
+            backupCount=15, # Keep logs for 15 days, adjust as needed
+            encoding='utf-8',
+            delay=False, # Set to False as we ensure directory exists
+            utc=False
+        )
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s'
+        )
+        timed_file_handler.setFormatter(file_formatter)
+        logger.addHandler(timed_file_handler)
+    except Exception as e:
+        print(f"ERROR: Could not create log file handler. Error: {e}")
+        # Continue with console-only logging
 
     console_handler = logging.StreamHandler(sys.stdout)
     console_formatter = logging.Formatter('%(levelname)s: %(message)s')
@@ -51,7 +62,10 @@ def setup_logging():
     logger.addHandler(console_handler)
 
     logger.info(f"--- Logging initialized for {APP_TITLE} v{VERSION} ---")
-    logger.info(f"Log file: {log_file_path.resolve()} (rotates daily, keeps {timed_file_handler.backupCount} backups)")
+    if log_file_path.exists() or log_file_path.parent.exists():
+        logger.info(f"Log file: {log_file_path.resolve()} (rotates daily, keeps 15 backups)")
+    else:
+        logger.warning("File logging unavailable - using console logging only")
 
     def handle_exception(exc_type, exc_value, exc_traceback):
         if issubclass(exc_type, KeyboardInterrupt):

@@ -4,7 +4,8 @@ from app.core.models import Book as BookModel
 from app.services.sales_entry_service import SalesEntryService
 from app.data.database import get_db_session
 from .sales_entry_item_data import SalesEntryItemData
-
+import logging
+logger = logging.getLogger(__name__)
 class SalesEntryItemsTable(ft.Container):
     def __init__(self,
                  page_ref: ft.Page,
@@ -54,7 +55,7 @@ class SalesEntryItemsTable(ft.Container):
             self.datatable.rows = [item.to_datarow() for item in self.sales_items_data_list]
             self.on_all_items_loaded_callback(self.sales_items_data_list)
         except Exception as e:
-            print(f"Error loading active books for sales table: {e}")
+            logger.error(f"Error loading active books for sales table: {e}", exc_info=True)
             self.datatable.rows = [ft.DataRow(cells=[ft.DataCell(ft.Text(f"Error loading books: {e}", color=ft.Colors.ERROR))])]
         if self.page and self.page.controls: self.page.update()
 
@@ -98,7 +99,7 @@ class SalesEntryItemsTable(ft.Container):
             if idx_in_list != -1: self.datatable.rows[idx_in_list] = item_data.to_datarow()
             else: self.datatable.rows = [item.to_datarow() for item in self.sales_items_data_list]
         except Exception as e:
-            print(f"SalesTable: Error updating specific datarow for {unique_item_id}: {e}. Rebuilding all rows.")
+            logger.error(f"SalesTable: Error updating specific datarow for {unique_item_id}: {e}. Rebuilding all rows.", exc_info=True)
             self.datatable.rows = [item.to_datarow() for item in self.sales_items_data_list]
         if self.page and self.page.controls: self.page.update()
 

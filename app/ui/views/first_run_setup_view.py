@@ -6,6 +6,9 @@ from app.core.exceptions import ValidationError, DatabaseError
 from app.config import APP_TITLE
 from app.ui.components.common.appbar_factory import create_appbar
 
+import logging
+logger = logging.getLogger(__name__)
+
 class FirstRunSetupView(ft.Container):
     def __init__(self, page: ft.Page, router, **params):
         super().__init__(expand=True, alignment=ft.alignment.center)
@@ -121,7 +124,7 @@ class FirstRunSetupView(ft.Container):
         except Exception as ex_general:
             self.error_text.value = "An unexpected error occurred. Please try again."
             self.error_text.visible = True
-            print(f"Unexpected error during first run setup: {ex_general}")
+            logger.error(f"Unexpected error during first run setup: {ex_general}", exc_info=True)
             if self.error_text.page: self.error_text.update()
 
         # No page.update() needed here if individual controls are updated.

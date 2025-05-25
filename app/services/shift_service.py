@@ -1,4 +1,5 @@
 import datetime
+import logging
 from typing import List, Dict, Any, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from app.data import crud_shifts
 from app.services import BookService
 from app.services.sales_entry_service import SalesEntryService
 
+logger = logging.getLogger(__name__)
 class ShiftService:
     def __init__(self):
         self.sales_entry_service = SalesEntryService()
@@ -130,7 +132,7 @@ class ShiftService:
                 )
             db.flush()
             if sales_processing_errors:
-                print(f"ShiftService: Errors during sales entry processing for shift {shift_obj.id}: {sales_processing_errors}")
+                logger.error(f"ShiftService: Errors during sales entry processing for shift {shift_obj.id}: {sales_processing_errors}", exc_info=True)
 
         actual_cash_in_drawer_cents = int(round(actual_cash_in_drawer_float * 100))
         updated_shift_obj = crud_shifts.update_shift_aggregates_and_drawer_value(

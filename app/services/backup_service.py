@@ -1,3 +1,4 @@
+import logging
 import shutil
 import datetime
 import os
@@ -6,6 +7,7 @@ from pathlib import Path # Import Path for type hinting if not already
 
 from app.config import DB_FILENAME, DB_BASE_DIR
 
+logger = logging.getLogger(__name__)
 class BackupService:
     def create_database_backup(self) -> Tuple[bool, str]:
         """
@@ -44,9 +46,9 @@ class BackupService:
         except OSError as e:
             # More specific error for OS-level issues like permissions or disk full
             error_msg = f"OS error during backup (e.g., permissions, disk full): {e.strerror} (Path: '{e.filename}')."
-            print(f"BackupService OS Error: {error_msg}") # Log for admin/dev
+            logger.error(f"BackupService OS Error: {error_msg}", exc_info=True) # Log for admin/dev
             return False, error_msg
         except Exception as e:
             error_msg = f"An unexpected error occurred during database backup: {type(e).__name__} - {e}."
-            print(f"BackupService Unexpected Error: {error_msg}") # Log for admin/dev
+            logger.error(f"BackupService Unexpected Error: {error_msg}", exc_info=True) # Log for admin/dev
             return False, error_msg

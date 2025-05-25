@@ -1,9 +1,11 @@
+import logging
+
 import flet as ft
 from typing import Callable, Dict, Optional, Tuple
 import threading
 
 from app.constants import GAME_LENGTH, BOOK_LENGTH, TICKET_LENGTH, MIN_REQUIRED_SCAN_LENGTH_WITH_TICKET, MIN_REQUIRED_SCAN_LENGTH
-
+logger = logging.getLogger(__name__)
 class ScanInputHandler:
     def __init__(
             self,
@@ -81,7 +83,7 @@ class ScanInputHandler:
 
         except Exception as e:
             # Catch any other unexpected error during the processing
-            print(f"ScanInputHandler: Unexpected error in _execute_processing: {e}") # Log for debugging
+            logger.error(f"ScanInputHandler: Unexpected error in _execute_processing: {e}", exc_info=True) # Log for debugging
             self.on_scan_error("An unexpected error occurred during scan processing. Please try again.")
         finally:
             # Ensure field is cleared and focused regardless of how the try block exited,
