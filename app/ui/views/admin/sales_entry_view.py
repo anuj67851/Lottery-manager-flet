@@ -36,7 +36,7 @@ class SalesEntryView(ft.Container):
         self.reported_online_sales_field = NumberDecimalField(label="Net Online Sales - SR 50 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
         self.reported_online_payouts_field = NumberDecimalField(label="Online Payouts - SR 50 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
         self.reported_instant_payouts_field = NumberDecimalField(label="Total Instant Payouts - SR 34 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False ) # Allow decimal values for SR34
-        self.actual_cash_in_drawer_field = NumberDecimalField(label="Lottery Cash in Drawer ($)", is_money_field=True, currency_symbol="$", hint_text="Lottery Cash In Drawer", expand=True, height=50, border_radius=8, is_integer_only=False )
+        self.actual_cash_in_drawer_field = NumberDecimalField(label="Lottery Cash in Drawer ($)", is_money_field=True, currency_symbol="$", hint_text="Lottery Cash In Drawer (can be negative)", expand=True, height=50, border_radius=8, is_integer_only=False, allow_negative=True )
         self.today_date_widget = ft.Text(f"Date: {datetime.datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD )
         self.books_in_table_count_widget = ft.Text("Books In Table: 0", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.NORMAL )
         self.pending_entry_books_count_widget = ft.Text("Pending Entry: 0", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.NORMAL, color=ft.Colors.ORANGE_ACCENT_700 )
@@ -61,7 +61,11 @@ class SalesEntryView(ft.Container):
     def _load_initial_data_for_table(self):
         if self.sales_items_table_component: self.sales_items_table_component.load_initial_active_books()
         for field in [self.reported_online_sales_field, self.reported_online_payouts_field, self.reported_instant_payouts_field, self.actual_cash_in_drawer_field]:
-            field.value = None; field.error_text = None; field.last_valid_value = ""
+            if hasattr(field, 'clear'):
+                field.clear()
+            else:
+                field.value = None
+                field.error_text = None
             if field.page: field.update()
         self._clear_scan_error_properties()
         if self.scan_input_handler and self.scan_input_handler.scan_text_field:
@@ -129,7 +133,7 @@ class SalesEntryView(ft.Container):
             reported_instant_payouts_float = self.reported_instant_payouts_field.get_value_as_float() # SR34 is integer_only=true but get_value_as_float() will work
             if reported_instant_payouts_float is None or reported_instant_payouts_float < 0: raise ValidationError("Reported Instant Payouts must be a non-negative number.")
             actual_cash_in_drawer_float = self.actual_cash_in_drawer_field.get_value_as_float()
-            if actual_cash_in_drawer_float is None or actual_cash_in_drawer_float < 0: raise ValidationError("Actual Cash in Drawer must be a non-negative number.")
+            if actual_cash_in_drawer_float is None: raise ValidationError("Actual Cash in Drawer must be a valid number.")
         except ValidationError as ve: self._on_scan_error_callback(f"Input Error: {ve.message}"); return
         except Exception as ex_val: self._on_scan_error_callback(f"Input Error: Invalid number in reported totals - {ex_val}"); return
 
@@ -208,6 +212,8 @@ class SalesEntryView(ft.Container):
         # Only show the full drawer difference details (with shortfall/overage label) to admin users
         if self.current_user and self.current_user.role == "admin":
             drawer_difference_display = ft.Text(f"Drawer Difference: {diff_text_val}{diff_label}", color=diff_color, weight=ft.FontWeight.BOLD, size=16)
+        else:
+            drawer_difference_display = ft.Container() # Empty container for non-admins
 
         dialog_content_list = [ ft.Text("Shift Submission Summary:", weight=ft.FontWeight.BOLD, size=16), ft.Text(f"Instant Sales (from table): ${total_instant_value_dollars:.2f}"), ft.Text(f"Online Sales Delta: ${delta_online_sales_dollars:.2f}"), ft.Text(f"Online Payout Delta: ${delta_online_payouts_dollars:.2f}"), ft.Text(f"Instant Payout Delta: ${delta_instant_payouts_dollars:.2f}"), ft.Divider(height=10, thickness=1), ft.Text(f"Calculated Drawer Value: ${calc_drawer_val_dollars:.2f}", weight=ft.FontWeight.BOLD, size=14), drawer_difference_display, ft.Divider(height=10, thickness=1), ]
         dialog = ft.AlertDialog(modal=True, title=ft.Text("Shift Submission Successful", weight=ft.FontWeight.BOLD), content=ft.Column(dialog_content_list, tight=True, spacing=10, width=400, scroll=ft.ScrollMode.AUTO, height=300), actions=[ ft.FilledButton("Go to Dashboard", on_click=self._go_to_dashboard, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))) ], actions_alignment=ft.MainAxisAlignment.END, shape=ft.RoundedRectangleBorder(radius=10) )
