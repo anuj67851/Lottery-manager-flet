@@ -15,6 +15,11 @@ class NumberDecimalField(ft.TextField):
         self.currency_symbol = currency_symbol # Store for potential use
         self.last_valid_value = "" # Stores the last known good value
 
+        # Initialize money fields with "0.00"
+        if self.is_money_field and not self.is_integer_only:
+            kwargs["value"] = "0.00"
+            self.last_valid_value = "0.00"
+
         current_regex_string = r"[0-9]" if self.is_integer_only else r"[0-9.]"
 
         if hint_text is None:
@@ -65,6 +70,38 @@ class NumberDecimalField(ft.TextField):
         """Validates the input on each change event."""
         current_value = e.control.value
 
+        # Special handling for money fields - shift digits to the right
+        if self.is_money_field and not self.is_integer_only:
+            # If the field is empty, reset to 0.00
+            if not current_value:
+                e.control.value = "0.00"
+                self.last_valid_value = "0.00"
+                e.control.update()
+                return
+
+            # Filter out non-numeric characters
+            digits_only = ''.join(c for c in current_value if c in "0123456789")
+
+            # If we have digits, format as currency (divide by 100)
+            if digits_only:
+                # Convert to float (divide by 100 to get dollars and cents)
+                float_value = float(digits_only) / 100
+                # Format with 2 decimal places
+                formatted_value = f"{float_value:.2f}"
+
+                # Update the field
+                e.control.value = formatted_value
+                self.last_valid_value = formatted_value
+                e.control.update()
+                return
+            else:
+                # If no digits, reset to 0.00
+                e.control.value = "0.00"
+                self.last_valid_value = "0.00"
+                e.control.update()
+                return
+
+        # Standard handling for non-money fields
         # Check for non-numeric characters (except '.' if decimals allowed)
         if current_value:
             # Filter characters that don't match our pattern
@@ -120,6 +157,10 @@ class NumberDecimalField(ft.TextField):
         """Returns the current value as an integer, or None if invalid or not an integer."""
         if self.value and self._is_valid_current_format(self.value):
             try:
+                # For money fields with value "0.00", return 0
+                if self.is_money_field and not self.is_integer_only and self.value == "0.00":
+                    return 0
+
                 if self.is_integer_only:
                     return int(self.value)
                 # For decimal fields, return int if it's a whole number
@@ -140,6 +181,9 @@ class NumberDecimalField(ft.TextField):
                     if len(parts) > 1 and len(parts[1]) > 2:
                         # This state should ideally be prevented by on_change, but as a safeguard
                         return None
+                # For money fields with value "0.00", return 0.0
+                if self.is_money_field and not self.is_integer_only and self.value == "0.00":
+                    return 0.0
                 return float(self.value)
             except ValueError:
                 return None
@@ -147,11 +191,20 @@ class NumberDecimalField(ft.TextField):
 
     def get_value_as_str(self) -> str:
         """Returns the raw string value."""
+        if self.is_money_field and not self.is_integer_only:
+            # For money fields, return "0.00" instead of empty string
+            return self.value if self.value else "0.00"
         return self.value if self.value else ""
 
     def clear(self):
         """Clears the input field."""
-        self.value = ""
-        self.last_valid_value = ""
+        if self.is_money_field and not self.is_integer_only:
+            # For money fields, reset to 0.00 instead of empty
+            self.value = "0.00"
+            self.last_valid_value = "0.00"
+        else:
+            # For other fields, clear completely
+            self.value = ""
+            self.last_valid_value = ""
         self.error_text = None
         self.update()
