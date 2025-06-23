@@ -232,6 +232,30 @@ class Book(Base):
         # self.game.price is now in CENTS, so remaining_value will also be in CENTS.
         return self.remaining_tickets * self.game.price
 
+    def reset_state_from_game(self):
+        """
+        Resets the book's core properties based on its associated game.
+        This should be called when a game's total_tickets or default_ticket_order changes.
+        It resets ticket order, current ticket number, and active/finished status.
+        """
+        if not self.game:
+            logger.error(f"Attempted to reset Book ID {self.id} but it has no associated game.")
+            return
+
+        logger.info(f"Resetting state for Book ID {self.id} based on updated Game ID {self.game.id}.")
+
+        # Reset ticket order from game's default
+        self.ticket_order = self.game.default_ticket_order
+
+        # Re-initialize the starting ticket number
+        self._initialize_current_ticket_number()
+
+        # Reset the status. Since the game definition changed, this book is
+        # considered "new" again and should be inactive and not finished.
+        self.is_active = False
+        self.finish_date = None
+        # Keep activate_date as is, to show when it was first introduced.
+
     def __repr__(self):
         return (f"<Book(id={self.id}, game_id={self.game_id}, book_number='{self.book_number}', "
                 f"ticket_order='{self.ticket_order}', is_active={self.is_active}, current_ticket_number={self.current_ticket_number})>")

@@ -210,16 +210,14 @@ class GameService:
 
 
         if restricted_fields_changed and can_change_restricted:
-            new_game_order = updated_game.default_ticket_order
-            new_total_tickets = updated_game.total_tickets
-            db.refresh(updated_game, attribute_names=['books']) # Ensure books are loaded
+            # Refresh to ensure the game's book collection is loaded before iterating
+            db.refresh(updated_game, attribute_names=['books'])
+
+            logger.info(f"Game ID {game_id} had restricted fields changed. Resetting state for {len(updated_game.books)} associated books (that have no sales).")
+
             for book in updated_game.books:
-                # If associated books exist (which shouldn't have sales if can_change_restricted is true),
-                # their properties dependent on game order or total tickets should be reset.
-                book.ticket_order = new_game_order
-                # Call model's internal logic to re-initialize current_ticket_number
-                # based on the potentially new total_tickets and new_game_order.
-                # This assumes Game object on Book is updated before _initialize_current_ticket_number is called.
-                # Since `game_to_update` is the same object as `book.game`, its attributes are already updated.
-                book._initialize_current_ticket_number() # This method uses self.game properties
+                # The game object on the book is the same instance as `updated_game`,
+                # so its properties are already updated. We can now call the reset method.
+                book.reset_state_from_game()
+
         return updated_game
