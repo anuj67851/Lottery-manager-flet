@@ -33,9 +33,9 @@ class SalesEntryView(ft.Container):
         self.sales_entry_service = SalesEntryService()
         self.shift_service = ShiftService()
 
-        self.reported_online_sales_field = NumberDecimalField(label="Reported Total Online Sales - SR 50 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
-        self.reported_online_payouts_field = NumberDecimalField(label="Reported Total Online Payouts - SR 50 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
-        self.reported_instant_payouts_field = NumberDecimalField(label="Reported Total Instant Payouts - SR 34 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False ) # Allow decimal values for SR34
+        self.reported_online_sales_field = NumberDecimalField(label="Net Online Sales - SR 50 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
+        self.reported_online_payouts_field = NumberDecimalField(label="Online Payouts - SR 50 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
+        self.reported_instant_payouts_field = NumberDecimalField(label="Total Instant Payouts - SR 34 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False ) # Allow decimal values for SR34
         self.actual_cash_in_drawer_field = NumberDecimalField(label="Lottery Cash in Drawer ($)", is_money_field=True, currency_symbol="$", hint_text="Lottery Cash In Drawer", expand=True, height=50, border_radius=8, is_integer_only=False )
         self.today_date_widget = ft.Text(f"Date: {datetime.datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD )
         self.books_in_table_count_widget = ft.Text("Books In Table: 0", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.NORMAL )
