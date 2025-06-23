@@ -61,18 +61,19 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             data_row_max_height=data_row_max_height,
         )
         self.datatable.expand = False
-        scrollable_table_row = ft.Row(
+        scrollable_table_column = ft.Column(
             [self.datatable],
             scroll=ft.ScrollMode.ADAPTIVE, # Allows horizontal scrolling for the DataTable
             expand=True,
-            vertical_alignment=ft.CrossAxisAlignment.START,
+            horizontal_alignment=ft.CrossAxisAlignment.START,
         )
 
         # Wrap the scrollable_table_row in a container that allows vertical scrolling
-        scrollable_container = ft.Column(
-            controls=[scrollable_table_row,],
+        scrollable_container = ft.Row(
+            controls=[scrollable_table_column,],
             expand=True,
             scroll=ft.ScrollMode.AUTO,
+            vertical_alignment=ft.CrossAxisAlignment.START,
         )
 
         self._initialize_columns()
