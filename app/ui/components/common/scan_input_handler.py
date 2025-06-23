@@ -1,12 +1,21 @@
 import logging
+import queue
 
 import flet as ft
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple, List
 import threading
 
 from app.constants import GAME_LENGTH, BOOK_LENGTH, TICKET_LENGTH, MIN_REQUIRED_SCAN_LENGTH_WITH_TICKET, MIN_REQUIRED_SCAN_LENGTH
 logger = logging.getLogger(__name__)
 class ScanInputHandler:
+    """
+    Handles scan input from a text field, processes the input, and calls appropriate callbacks.
+
+    This class implements a queue-based approach to handle rapid scan inputs, ensuring that
+    each scan is processed in the order it was received, without overwriting previous scans.
+    When multiple scans are received in quick succession, they are added to a queue and
+    processed sequentially.
+    """
     def __init__(
             self,
             scan_text_field: ft.TextField,
@@ -28,6 +37,9 @@ class ScanInputHandler:
         self.expected_length = MIN_REQUIRED_SCAN_LENGTH_WITH_TICKET if require_ticket else MIN_REQUIRED_SCAN_LENGTH
         self._debounce_timer: Optional[threading.Timer] = None
         self._processing_lock = threading.Lock()
+        self._scan_queue = queue.Queue()
+        self._is_processing = False
+        self._processing_thread = None
 
         self.scan_text_field.on_change = self._handle_input_change
         self.scan_text_field.on_submit = self._handle_input_submit
@@ -57,38 +69,24 @@ class ScanInputHandler:
             parsed_data['ticket_no'] = ticket_no_str
         return parsed_data, None
 
-    def _execute_processing(self):
-        if not self._processing_lock.acquire(blocking=False):
-            return
-
-        value_snapshot = "" # Initialize
+    def _process_scan_input(self, scan_value: str):
+        """Process a single scan input value."""
         try:
-            value_snapshot = self.scan_text_field.value.strip() if self.scan_text_field.value else ""
-
-            if len(value_snapshot) < self.expected_length:
-                self.on_scan_error(f"Scan input too short. Expected {self.expected_length} chars, got {len(value_snapshot)}.")
-                # Do not return yet, allow finally block to clear/focus if needed
-                # The rest of the processing will be skipped due to length check.
-            else: # Only proceed with parsing if length is initially okay
-                input_to_parse = value_snapshot[:self.expected_length]
+            if len(scan_value) < self.expected_length:
+                self.on_scan_error(f"Scan input too short. Expected {self.expected_length} chars, got {len(scan_value)}.")
+            else:
+                input_to_parse = scan_value[:self.expected_length]
                 parsed_data, error_msg = self._parse_scan_data(input_to_parse)
 
                 if error_msg:
                     self.on_scan_error(error_msg)
                 elif parsed_data:
                     self.on_scan_complete(parsed_data)
-                # If neither error_msg nor parsed_data, it's an unexpected state from _parse_scan_data
-                # (though current _parse_scan_data always returns one or the other if input length is fine).
-                # This case is implicitly handled by the outer except Exception if something truly odd happens.
-
         except Exception as e:
-            # Catch any other unexpected error during the processing
-            logger.error(f"ScanInputHandler: Unexpected error in _execute_processing: {e}", exc_info=True) # Log for debugging
+            logger.error(f"ScanInputHandler: Unexpected error in _process_scan_input: {e}", exc_info=True)
             self.on_scan_error("An unexpected error occurred during scan processing. Please try again.")
         finally:
-            # Ensure field is cleared and focused regardless of how the try block exited,
-            # but only if auto-options are enabled.
-            # This part needs to run after on_scan_complete or on_scan_error has potentially updated UI.
+            # Clear and focus the input field if needed
             if self.auto_clear_on_complete:
                 self.scan_text_field.value = ""
                 if self.scan_text_field.page:
@@ -97,12 +95,43 @@ class ScanInputHandler:
             if self.auto_focus_on_complete and self.scan_text_field.page:
                 self.scan_text_field.focus()
 
-            self._processing_lock.release()
+    def _process_queue(self):
+        """Process all items in the scan queue."""
+        with self._processing_lock:
+            self._is_processing = True
+
+        try:
+            while not self._scan_queue.empty():
+                scan_value = self._scan_queue.get()
+                self._process_scan_input(scan_value)
+                self._scan_queue.task_done()
+        finally:
+            with self._processing_lock:
+                self._is_processing = False
+                self._processing_thread = None
+
+    def _execute_processing(self):
+        """Add current input to queue and start processing if not already processing."""
+        value_snapshot = self.scan_text_field.value.strip() if self.scan_text_field.value else ""
+
+        if value_snapshot:
+            # Add the current value to the queue
+            self._scan_queue.put(value_snapshot)
+
+            # Start processing thread if not already running
+            with self._processing_lock:
+                if not self._is_processing:
+                    self._processing_thread = threading.Thread(target=self._process_queue)
+                    self._processing_thread.daemon = True
+                    self._processing_thread.start()
 
 
     def _handle_input_change(self, e: ft.ControlEvent):
+        # Cancel any existing debounce timer
         if self._debounce_timer:
             self._debounce_timer.cancel()
+
+        # Start a new debounce timer
         self._debounce_timer = threading.Timer(
             self.debounce_time_seconds,
             self._execute_processing
@@ -110,20 +139,40 @@ class ScanInputHandler:
         self._debounce_timer.start()
 
     def _handle_input_submit(self, e: ft.ControlEvent):
+        # Cancel any existing debounce timer
         if self._debounce_timer:
             self._debounce_timer.cancel()
+
+        # Process the input immediately
         self._execute_processing()
 
     def clear_input(self):
+        # Cancel any existing debounce timer
         if self._debounce_timer:
             self._debounce_timer.cancel()
-        # No lock needed here if it's just setting value,
-        # but if it could interfere with _execute_processing, lock might be considered.
-        # For simplicity, direct update.
+
+        # Clear the text field
         self.scan_text_field.value = ""
         if self.scan_text_field.page:
             self.scan_text_field.update()
 
+        # Note: We don't clear the queue here to allow any pending scans to be processed
+
     def focus_input(self):
         if self.scan_text_field.page:
             self.scan_text_field.focus()
+
+    def clear_queue(self):
+        """
+        Clears the scan queue, discarding any pending scan inputs.
+        This can be useful in situations where you want to reset the system
+        or discard pending scans.
+        """
+        # Use a lock to ensure thread safety
+        with self._processing_lock:
+            # Create a new empty queue
+            self._scan_queue = queue.Queue()
+
+            # Note: We don't stop the current processing thread,
+            # as it will finish processing the current item and then exit
+            # when it finds the queue empty
