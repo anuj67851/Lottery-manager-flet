@@ -69,10 +69,10 @@ class PaginatedDataTable(ft.Container, Generic[T]):
         )
 
         # Wrap the scrollable_table_row in a container that allows vertical scrolling
-        scrollable_container = ft.Container(
-            content=scrollable_table_row,
+        scrollable_container = ft.Column(
+            controls=[scrollable_table_row,],
             expand=True,
-            scroll=ft.ScrollMode.VERTICAL, # Add vertical scrolling
+            scroll=ft.ScrollMode.AUTO,
         )
 
         self._initialize_columns()
