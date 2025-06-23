@@ -1,9 +1,12 @@
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.data.crud_users import get_user_by_username # Direct DAO access for this specific need
 from app.core.models import User
 from app.core.exceptions import AuthenticationError, ValidationError
 
+logger = logging.getLogger("lottery_manager_app")
 class AuthService:
     @staticmethod
     def authenticate_user(db: Session, username: str, password: str) -> User:
@@ -32,15 +35,19 @@ class AuthService:
 
         if not user:
             # Do not reveal if username exists or not for security.
+            logger.warning(f"Failed login attempt for username: '{username}'. Reason: User not found.")
             raise AuthenticationError("Invalid username or password.")
 
         if not user.check_password(password):
+            logger.warning(f"Failed login attempt for username: '{username}'. Reason: Invalid password.")
             raise AuthenticationError("Invalid username or password.")
 
         if not user.is_active:
             # User exists and password is correct, but account is inactive.
+            logger.warning(f"Failed login attempt for username: '{username}'. Reason: Account is inactive.")
             raise AuthenticationError("User account is not active. Please contact an administrator.")
 
+        logger.info(f"User '{user.username}' (Role: {user.role}) authenticated successfully.")
         return user
 
     @staticmethod

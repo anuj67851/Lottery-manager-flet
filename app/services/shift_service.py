@@ -11,7 +11,7 @@ from app.data import crud_shifts
 from app.services import BookService
 from app.services.sales_entry_service import SalesEntryService
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 class ShiftService:
     def __init__(self):
         self.sales_entry_service = SalesEntryService()
@@ -28,6 +28,7 @@ class ShiftService:
         Calculates aggregates for this special shift. Drawer difference will be $0.
         `total_value_instant` will be in CENTS.
         """
+        logger.info(f"Admin user {admin_user_id} is starting a full book sale for {len(book_ids_to_sell)} books.")
         current_submission_datetime = datetime.datetime.now()
         created_shift = None
         successful_sales_count = 0
@@ -108,6 +109,7 @@ class ShiftService:
             actual_cash_in_drawer_float: float,
             sales_item_details: List[Dict[str, Any]]
     ) -> ShiftSubmission:
+        logger.info(f"User {user_id} is starting a new shift submission with {len(sales_item_details)} instant sales items.")
         current_submission_datetime = datetime.datetime.now()
 
         # For regular employee shifts, use the _float parameters

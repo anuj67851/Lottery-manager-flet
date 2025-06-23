@@ -21,7 +21,7 @@ from app.data import crud_games
 from app.ui.components.widgets import NumberDecimalField
 from app.ui.components.common.scan_input_handler import ScanInputHandler
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 class TempBookActionItem:
     def __init__(self, game_model: GameModel, book_number_str: str,
                  book_model_ref: Optional[BookModel] = None,

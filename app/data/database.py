@@ -9,7 +9,7 @@ from app.config import SQLALCHEMY_DATABASE_URL, VERSION, LICENSE_FILE_PATH
 from app.core.models import Base
 from app.services import UserService, ConfigurationService
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False},

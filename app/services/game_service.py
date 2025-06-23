@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Union
 
 from sqlalchemy.orm import Session
@@ -7,7 +8,7 @@ from app.core.models import Game
 from app.core.exceptions import ValidationError, GameNotFoundError, DatabaseError # Added DatabaseError
 from app.constants import REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER
 from app.data import crud_games
-
+logger = logging.getLogger("lottery_manager_app")
 # Game validation constants
 MIN_GAME_NAME_LENGTH = 3
 MAX_GAME_NAME_LENGTH = 100
@@ -86,6 +87,7 @@ class GameService:
 
         # crud_games.create_game handles DatabaseError if game_number exists
         try:
+            logger.info(f"Attempting to create new game '{game_name}' (No: {game_number}, Price Cents: {price_in_cents}).")
             return crud_games.create_game(db, game_name, price_in_cents, total_tickets, game_number, order)
         except DatabaseError as e:
             raise e # Re-raise specific known errors
@@ -108,6 +110,7 @@ class GameService:
         if game_to_expire.is_expired:
             return game_to_expire # Already expired
         try:
+            logger.info(f"Expiring game '{game_to_expire.name}' (ID: {game_id}). All active books will be deactivated.")
             return crud_games.expire_game_in_db(db, game_id)
         except DatabaseError as e:
             raise e
@@ -194,9 +197,11 @@ class GameService:
                     raise ValidationError("Default ticket order cannot be changed for games with sales history.")
 
         if not updates:
+            logger.debug(f"No changes detected for game ID {game_id}. Skipping update.")
             return game_to_update # No changes
 
         try:
+            logger.info(f"Attempting to update game '{game_to_update.name}' (ID: {game_id}) with data: {updates}.")
             updated_game = crud_games.update_game_details(db, game_to_update, updates)
         except DatabaseError as e:
             raise e # Re-raise specific DB errors like unique constraint violation for game_number

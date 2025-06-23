@@ -16,7 +16,7 @@ from app.ui.components.common.scan_input_handler import ScanInputHandler
 from app.ui.components.widgets import NumberDecimalField
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 
 class SalesEntryView(ft.Container):
     def __init__(self, page: ft.Page, router, current_user: User, license_status: bool,

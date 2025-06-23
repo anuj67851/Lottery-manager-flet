@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, List, Type
 from sqlalchemy.orm import Session
 import re # For regex-based validation
@@ -7,6 +8,7 @@ from app.core.exceptions import UserNotFoundError, ValidationError, DatabaseErro
 from app.data import crud_users
 from app.constants import EMPLOYEE_ROLE, ALL_USER_ROLES, SALESPERSON_ROLE # Added SALESPERSON_ROLE for specific checks
 
+logger = logging.getLogger("lottery_manager_app")
 # Username validation constants
 MIN_USERNAME_LENGTH = 3
 MAX_USERNAME_LENGTH = 30
@@ -16,8 +18,6 @@ USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*[a-zA-Z0-9]$")
 
 # Password validation constants
 MIN_PASSWORD_LENGTH = 6
-# Example: Add more complexity if needed, e.g., require numbers, uppercase, special chars
-# PASSWORD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$")
 
 
 class UserService:
@@ -88,6 +88,7 @@ class UserService:
 
         # crud_users.create_user handles DatabaseError if username (unique constraint) exists
         try:
+            logger.info(f"Attempting to create new user '{username}' with role '{role}'.")
             return crud_users.create_user(db, username, password, role)
         except DatabaseError as e: # Re-raise specific DB errors
             raise e
@@ -113,6 +114,7 @@ class UserService:
 
         # The CRUD operation will handle checking for username uniqueness if username is changed.
         try:
+            logger.info(f"Attempting to update user ID {user_id}. Changes: username='{username}', role='{role}', is_active='{is_active}'. Password change attempted: {'Yes' if password else 'No'}.")
             return crud_users.update_user(db, user_id, username, password, role, is_active)
         except DatabaseError as e: # Re-raise specific DB errors
             raise e
@@ -129,8 +131,10 @@ class UserService:
             # Check if this is the last salesperson
             salespersons = self.get_users_by_roles(db, [SALESPERSON_ROLE])
             if len(salespersons) <= 1:
+                logger.warning(f"Attempt to delete last salesperson account '{user_to_delete.username}' was blocked.")
                 raise ValidationError("Cannot delete the last Salesperson account.")
 
+        logger.info(f"Attempting to delete user '{user_to_delete.username}' (ID: {user_to_delete.id}).")
         return crud_users.delete_user(db, user_id)
 
     def deactivate_user(self, db: Session, user_id: int, current_acting_user_id: Optional[int] = None) -> User:
@@ -141,6 +145,7 @@ class UserService:
             raise ValidationError("Salesperson accounts cannot be deactivated through this method. Consider role change or deletion if necessary and appropriate.")
         if not user.is_active:
             return user # Already inactive
+        logger.info(f"Deactivating user '{user.username}' (ID: {user.id}) by user ID {current_acting_user_id}.")
         return crud_users.update_user(db, user_id, is_active=False)
 
     def reactivate_user(self, db: Session, user_id: int) -> User:
@@ -151,4 +156,5 @@ class UserService:
             pass
         if user.is_active:
             return user # Already active
+        logger.info(f"Reactivating user '{user.username}' (ID: {user.id}).")
         return crud_users.update_user(db, user_id, is_active=True)

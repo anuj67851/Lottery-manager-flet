@@ -10,7 +10,7 @@ from app.data.database import get_db_session
 from app.core.exceptions import AuthenticationError, ValidationError
 from app.core.models import User
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 
 class LoginForm(ft.Container):
     def __init__(self, page: ft.Page, on_login_success: Callable[[User], None]):

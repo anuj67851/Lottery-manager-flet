@@ -14,7 +14,7 @@ from app.ui.components.common.appbar_factory import create_appbar
 from app.config import APP_TITLE, VERSION
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 
 class LoginView(ft.Container):
     def __init__(self, page: ft.Page, router, **params):

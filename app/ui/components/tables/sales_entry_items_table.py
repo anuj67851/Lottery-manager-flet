@@ -5,7 +5,7 @@ from app.services.sales_entry_service import SalesEntryService
 from app.data.database import get_db_session
 from .sales_entry_item_data import SalesEntryItemData
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 class SalesEntryItemsTable(ft.Container):
     def __init__(self,
                  page_ref: ft.Page,

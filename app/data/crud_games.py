@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.models import Game, SalesEntry, Book
 from app.core.exceptions import DatabaseError, ValidationError, GameNotFoundError # Import custom exceptions
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 def get_game_by_game_number(db: Session, game_number: int) -> Game | None: # Type hint for game_number
     return db.query(Game).filter(Game.game_number == game_number).first()
 

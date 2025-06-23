@@ -15,7 +15,7 @@ from sqlalchemy.orm import relationship
 
 from app.constants import REVERSE_TICKET_ORDER
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 Base = declarative_base()
 
 class User(Base):

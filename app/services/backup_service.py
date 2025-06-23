@@ -7,7 +7,7 @@ from pathlib import Path # Import Path for type hinting if not already
 
 from app.config import DB_FILENAME, DB_BASE_DIR
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 class BackupService:
     def create_database_backup(self) -> Tuple[bool, str]:
         """

@@ -9,7 +9,7 @@ from app.data import crud_configurations
 from app.core.models import Configuration
 from app.core.exceptions import DatabaseError, AppException
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 
 class LicenseFileError(AppException):
     """Custom exception for license file operations."""

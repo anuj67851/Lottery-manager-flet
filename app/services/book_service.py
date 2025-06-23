@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 import datetime
@@ -7,6 +8,7 @@ from app.core.exceptions import DatabaseError, ValidationError, BookNotFoundErro
 from app.data import crud_books, crud_games
 from app.constants import REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER
 
+logger = logging.getLogger("lottery_manager_app")
 class BookService:
     def get_all_books_with_details(self, db: Session) -> List[Book]:
         return crud_books.get_all_books_with_game_info(db)
@@ -41,13 +43,14 @@ class BookService:
         book.is_active = True
         book.activate_date = datetime.datetime.now()
         book.finish_date = None # Clear finish date if it was previously set for an inactive book
-
+        logger.info(f"Activating book ID {book.id} (Game No: {book.game.game_number}, Book No: {book.book_number}).")
         # crud_books.update_book_details(db, book, {"is_active": True, "activate_date": book.activate_date, "finish_date": None})
         # The commit will be handled by the get_db_session context manager
         return book
 
     def activate_books_batch(self, db: Session, book_ids: List[int]) -> Tuple[List[Book], List[str]]:
         """Activates a list of books. Returns (activated_books, error_messages)."""
+        logger.info(f"Starting batch activation for {len(book_ids)} books.")
         activated_books: List[Book] = []
         errors: List[str] = []
         for book_id in book_ids:
@@ -170,6 +173,7 @@ class BookService:
         Each dict in books_data should contain 'game_id' and 'book_number_str'.
         Returns a tuple: (list_of_successfully_created_book_objects, list_of_error_messages_for_failed_books).
         """
+        logger.info(f"Starting batch-add for {len(books_data)} books.")
         created_books_list: List[Book] = []
         errors_list: List[str] = []
 
@@ -217,8 +221,10 @@ class BookService:
             raise ValidationError("Cannot delete an active book. Deactivate it first.")
 
         if self.has_book_any_sales(db, book_id):
+            logger.warning(f"Attempt to delete book ID {book_id} failed: Book has sales entries.")
             raise ValidationError("Cannot delete a book with sales entries.")
 
+        logger.info(f"Attempting to delete book ID {book_id} (Game No: {book_to_delete.game.game_number if book_to_delete.game else 'N/A'}, Book No: {book_to_delete.book_number}).")
         return crud_books.delete_book_by_id(db, book_id)
 
     def get_ids_of_books_with_sales(self, db: Session) -> set[int]:

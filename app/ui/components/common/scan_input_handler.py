@@ -6,7 +6,7 @@ from typing import Callable, Dict, Optional, Tuple, List
 import threading
 
 from app.constants import GAME_LENGTH, BOOK_LENGTH, TICKET_LENGTH, MIN_REQUIRED_SCAN_LENGTH_WITH_TICKET, MIN_REQUIRED_SCAN_LENGTH
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 class ScanInputHandler:
     """
     Handles scan input from a text field, processes the input, and calls appropriate callbacks.

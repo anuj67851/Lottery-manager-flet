@@ -12,7 +12,7 @@ from reportlab.platypus import (
 )
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 
 class PDFGenerator:
     def __init__(self, file_path: str, page_size=letter, company_name="Your Company", logo_path=None):

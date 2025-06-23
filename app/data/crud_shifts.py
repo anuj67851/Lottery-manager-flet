@@ -8,7 +8,7 @@ from sqlalchemy import func, desc
 from app.core.models import ShiftSubmission, SalesEntry, User, Book
 from app.core.exceptions import DatabaseError
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 def create_shift_submission(
         db: Session,
         user_id: int,

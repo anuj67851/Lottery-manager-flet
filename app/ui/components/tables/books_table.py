@@ -12,7 +12,7 @@ from app.ui.components.widgets import NumberDecimalField # For edit dialog poten
 from app.constants import REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 class BooksTable(PaginatedDataTable[Book]):
     def __init__(self, page: ft.Page, book_service: BookService,
                  on_data_changed_stats: Optional[Callable[[int, int, int], None]] = None):

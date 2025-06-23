@@ -9,7 +9,7 @@ from app.core.exceptions import ValidationError, DatabaseError, GameNotFoundErro
 from app.core.models import Book, SalesEntry, Game as GameModel, ShiftSubmission # Added ShiftSubmission
 from app.data import crud_books, crud_games, crud_sales_entries
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 
 class SalesEntryService:
     def get_active_books_for_sales_display(self, db: Session) -> List[Book]:

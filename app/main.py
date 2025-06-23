@@ -88,6 +88,7 @@ def main(page: ft.Page):
         page.update()
         return
 
+    logger.info(f"Using data directory: {DB_BASE_DIR.resolve()}")
     try:
         setup_logging()
     except Exception as e:

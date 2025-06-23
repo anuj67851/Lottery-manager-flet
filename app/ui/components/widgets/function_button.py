@@ -1,7 +1,7 @@
 from typing import Any, Optional, Dict, Callable # Added Callable
 import flet as ft
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 def create_nav_card_button(
         router: Any,  # Can be your app's Router instance or page for page.go
         text: str,

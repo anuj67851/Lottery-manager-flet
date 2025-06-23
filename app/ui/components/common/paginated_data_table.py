@@ -7,7 +7,7 @@ import inspect
 
 from app.data.database import get_db_session
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 T = TypeVar('T')
 
 class PaginatedDataTable(ft.Container, Generic[T]):

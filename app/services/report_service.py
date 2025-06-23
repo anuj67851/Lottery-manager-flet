@@ -12,7 +12,7 @@ from app.data import crud_reports, crud_games
 from app.utils.pdf_generator import PDFGenerator
 from app.config import DB_BASE_DIR
 from app.core.models import Game, ShiftSubmission, User as UserModel
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 class ReportService:
     def get_sales_report_data(
             self,

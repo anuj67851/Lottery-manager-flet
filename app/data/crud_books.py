@@ -11,7 +11,7 @@ from app.core.models import Book, SalesEntry, Game
 from app.core.exceptions import DatabaseError, ValidationError, BookNotFoundError  # Assuming you might need these
 from app.constants import REVERSE_TICKET_ORDER
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 
 def get_book_by_id(db: Session, book_id: int) -> Optional[Book]:
     return db.query(Book).options(joinedload(Book.game)).filter(Book.id == book_id).first()

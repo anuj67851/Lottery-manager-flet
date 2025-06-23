@@ -13,7 +13,7 @@ from app.ui.views.admin.book_management import BookManagementView
 from app.ui.views.first_run_setup_view import FirstRunSetupView # Import the new view
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 
 # Import constants for route names
 from app.constants import (

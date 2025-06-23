@@ -8,7 +8,7 @@ from app.core.models import User
 from app.constants import EMPLOYEE_ROLE # Use constant
 from app.core.exceptions import UserNotFoundError, DatabaseError, ValidationError # Import custom exceptions
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lottery_manager_app")
 def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return db.query(User).filter(User.id == user_id).first()
 
