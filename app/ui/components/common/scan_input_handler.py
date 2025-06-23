@@ -1,20 +1,14 @@
 import logging
-import queue
-
 import flet as ft
 from typing import Callable, Dict, Optional, Tuple, List
-import threading
 
-from app.constants import GAME_LENGTH, BOOK_LENGTH, TICKET_LENGTH, MIN_REQUIRED_SCAN_LENGTH_WITH_TICKET, MIN_REQUIRED_SCAN_LENGTH
 logger = logging.getLogger("lottery_manager_app")
+
 class ScanInputHandler:
     """
-    Handles scan input from a text field, processes the input, and calls appropriate callbacks.
-
-    This class implements a queue-based approach to handle rapid scan inputs, ensuring that
-    each scan is processed in the order it was received, without overwriting previous scans.
-    When multiple scans are received in quick succession, they are added to a queue and
-    processed sequentially.
+    Handles scan input by queueing valid scans and processing them sequentially
+    on the Flet UI thread. This approach is robust against rapid-fire scans even
+    on slow machines, preventing lost inputs and logical race conditions.
     """
     def __init__(
             self,
@@ -24,7 +18,6 @@ class ScanInputHandler:
             require_ticket: bool = False,
             auto_clear_on_complete: bool = True,
             auto_focus_on_complete: bool = True,
-            debounce_ms: int = 200,
     ):
         self.scan_text_field = scan_text_field
         self.on_scan_complete = on_scan_complete
@@ -32,147 +25,112 @@ class ScanInputHandler:
         self.require_ticket = require_ticket
         self.auto_clear_on_complete = auto_clear_on_complete
         self.auto_focus_on_complete = auto_focus_on_complete
-        self.debounce_time_seconds = debounce_ms / 1000.0
 
-        self.expected_length = MIN_REQUIRED_SCAN_LENGTH_WITH_TICKET if require_ticket else MIN_REQUIRED_SCAN_LENGTH
-        self._debounce_timer: Optional[threading.Timer] = None
-        self._processing_lock = threading.Lock()
-        self._scan_queue = queue.Queue()
+        self._scan_queue: List[Dict[str, str]] = []
         self._is_processing = False
-        self._processing_thread = None
 
-        self.scan_text_field.on_change = self._handle_input_change
-        self.scan_text_field.on_submit = self._handle_input_submit
+        from app.constants import GAME_LENGTH, BOOK_LENGTH, TICKET_LENGTH
+        self.GAME_LENGTH = GAME_LENGTH
+        self.BOOK_LENGTH = BOOK_LENGTH
+        self.TICKET_LENGTH = TICKET_LENGTH
+
+        if self.require_ticket:
+            self.expected_length = self.GAME_LENGTH + self.BOOK_LENGTH + self.TICKET_LENGTH
+        else:
+            self.expected_length = self.GAME_LENGTH + self.BOOK_LENGTH
+
+        self.scan_text_field.on_submit = self._handle_input_producer
+        self.scan_text_field.on_change = self._handle_input_producer
 
     def _parse_scan_data(self, scan_value: str) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
         if len(scan_value) < self.expected_length:
-            return None, f"Scan input too short. Expected {self.expected_length} chars, got {len(scan_value)}."
+            return None, None
 
-        game_no_str = scan_value[:GAME_LENGTH]
-        book_no_str = scan_value[GAME_LENGTH : GAME_LENGTH + BOOK_LENGTH]
+        game_no_str = scan_value[:self.GAME_LENGTH]
+        book_no_str = scan_value[self.GAME_LENGTH : self.GAME_LENGTH + self.BOOK_LENGTH]
         parsed_data = {}
 
-        if not (game_no_str.isdigit() and len(game_no_str) == GAME_LENGTH):
-            return None, f"Invalid Game No. format: '{game_no_str}'. Expected {GAME_LENGTH} digits."
+        if not (game_no_str.isdigit() and len(game_no_str) == self.GAME_LENGTH):
+            return None, f"Invalid Game No. format: '{game_no_str}'."
         parsed_data['game_no'] = game_no_str
 
-        if not (book_no_str.isdigit() and len(book_no_str) == BOOK_LENGTH):
-            return None, f"Invalid Book No. format: '{book_no_str}'. Expected {BOOK_LENGTH} digits."
+        if not (book_no_str.isdigit() and len(book_no_str) == self.BOOK_LENGTH):
+            return None, f"Invalid Book No. format: '{book_no_str}'."
         parsed_data['book_no'] = book_no_str
 
         if self.require_ticket:
-            if len(scan_value) < (GAME_LENGTH + BOOK_LENGTH + TICKET_LENGTH):
-                return None, f"Scan input too short for ticket part. Expected {TICKET_LENGTH} more chars."
-            ticket_no_str = scan_value[GAME_LENGTH + BOOK_LENGTH : GAME_LENGTH + BOOK_LENGTH + TICKET_LENGTH]
-            if not (ticket_no_str.isdigit() and len(ticket_no_str) == TICKET_LENGTH):
-                return None, f"Invalid Ticket No. format: '{ticket_no_str}'. Expected {TICKET_LENGTH} digits."
+            ticket_part_start = self.GAME_LENGTH + self.BOOK_LENGTH
+            ticket_no_str = scan_value[ticket_part_start : ticket_part_start + self.TICKET_LENGTH]
+            if not (ticket_no_str.isdigit() and len(ticket_no_str) == self.TICKET_LENGTH):
+                return None, f"Invalid Ticket No. format: '{ticket_no_str}'."
             parsed_data['ticket_no'] = ticket_no_str
+
         return parsed_data, None
 
-    def _process_scan_input(self, scan_value: str):
-        """Process a single scan input value."""
-        try:
-            if len(scan_value) < self.expected_length:
-                self.on_scan_error(f"Scan input too short. Expected {self.expected_length} chars, got {len(scan_value)}.")
-            else:
-                input_to_parse = scan_value[:self.expected_length]
-                parsed_data, error_msg = self._parse_scan_data(input_to_parse)
+    def _handle_input_producer(self, e: ft.ControlEvent):
+        """Producer: Validates, queues the input, and kicks off the consumer loop if idle."""
+        scan_value = e.control.value.strip()
 
-                if error_msg:
-                    self.on_scan_error(error_msg)
-                elif parsed_data:
-                    self.on_scan_complete(parsed_data)
-        except Exception as e:
-            logger.error(f"ScanInputHandler: Unexpected error in _process_scan_input: {e}", exc_info=True)
-            self.on_scan_error("An unexpected error occurred during scan processing. Please try again.")
-        finally:
-            # Clear and focus the input field if needed
-            if self.auto_clear_on_complete:
-                self.scan_text_field.value = ""
-                if self.scan_text_field.page:
-                    self.scan_text_field.update()
+        if len(scan_value) < self.expected_length:
+            return
 
+        if self.auto_clear_on_complete:
+            e.control.value = ""
+            e.control.update()
+
+        parsed_data, error_msg = self._parse_scan_data(scan_value)
+
+        if error_msg:
+            self.on_scan_error(error_msg)
+            return
+
+        if parsed_data:
+            self._scan_queue.append(parsed_data)
+
+            # Atomically check and start the processing loop.
+            if not self._is_processing:
+                self._is_processing = True
+                self._process_queue_motor()
+
+    def _process_queue_motor(self):
+        """
+        Consumer Motor: This is the core of the safe processing loop.
+        It processes one item, and upon completion, it checks for more work.
+        This structure prevents recursive calls and ensures atomicity.
+        """
+        if not self._scan_queue:
+            # Queue is empty, we can safely release the lock and stop.
+            self._is_processing = False
+
+            # Manage focus at the very end of a processing batch
             if self.auto_focus_on_complete and self.scan_text_field.page:
                 self.scan_text_field.focus()
+            return
 
-    def _process_queue(self):
-        """Process all items in the scan queue."""
-        with self._processing_lock:
-            self._is_processing = True
+        # Get the next item BUT KEEP THE LOCK
+        scan_data_to_process = self._scan_queue.pop(0)
 
         try:
-            while not self._scan_queue.empty():
-                scan_value = self._scan_queue.get()
-                self._process_scan_input(scan_value)
-                self._scan_queue.task_done()
+            # Call the potentially slow callback to do the main work
+            self.on_scan_complete(scan_data_to_process)
+        except Exception as e:
+            logger.error(f"ScanInputHandler: Unexpected error in consumer callback: {e}", exc_info=True)
+            self.on_scan_error("A critical error occurred while processing a queued scan.")
         finally:
-            with self._processing_lock:
-                self._is_processing = False
-                self._processing_thread = None
-
-    def _execute_processing(self):
-        """Add current input to queue and start processing if not already processing."""
-        value_snapshot = self.scan_text_field.value.strip() if self.scan_text_field.value else ""
-
-        if value_snapshot:
-            # Add the current value to the queue
-            self._scan_queue.put(value_snapshot)
-
-            # Start processing thread if not already running
-            with self._processing_lock:
-                if not self._is_processing:
-                    self._processing_thread = threading.Thread(target=self._process_queue)
-                    self._processing_thread.daemon = True
-                    self._processing_thread.start()
-
-
-    def _handle_input_change(self, e: ft.ControlEvent):
-        # Cancel any existing debounce timer
-        if self._debounce_timer:
-            self._debounce_timer.cancel()
-
-        # Start a new debounce timer
-        self._debounce_timer = threading.Timer(
-            self.debounce_time_seconds,
-            self._execute_processing
-        )
-        self._debounce_timer.start()
-
-    def _handle_input_submit(self, e: ft.ControlEvent):
-        # Cancel any existing debounce timer
-        if self._debounce_timer:
-            self._debounce_timer.cancel()
-
-        # Process the input immediately
-        self._execute_processing()
+            # --- CRITICAL SECTION ---
+            # The work for the current item is done.
+            # We immediately call ourself to check for the next item BEFORE releasing the lock.
+            # This ensures that no producer can start a competing loop.
+            self._process_queue_motor()
 
     def clear_input(self):
-        # Cancel any existing debounce timer
-        if self._debounce_timer:
-            self._debounce_timer.cancel()
-
-        # Clear the text field
         self.scan_text_field.value = ""
         if self.scan_text_field.page:
             self.scan_text_field.update()
 
-        # Note: We don't clear the queue here to allow any pending scans to be processed
+    def clear_queue(self):
+        self._scan_queue.clear()
 
     def focus_input(self):
         if self.scan_text_field.page:
             self.scan_text_field.focus()
-
-    def clear_queue(self):
-        """
-        Clears the scan queue, discarding any pending scan inputs.
-        This can be useful in situations where you want to reset the system
-        or discard pending scans.
-        """
-        # Use a lock to ensure thread safety
-        with self._processing_lock:
-            # Create a new empty queue
-            self._scan_queue = queue.Queue()
-
-            # Note: We don't stop the current processing thread,
-            # as it will finish processing the current item and then exit
-            # when it finds the queue empty
