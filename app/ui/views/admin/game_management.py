@@ -79,7 +79,7 @@ class GameManagementView(ft.Container):
         # NumberDecimalField's get_value_as_float/int handles conversion and basic None check
         price_field = NumberDecimalField(label="Price (e.g., $1.00)", hint_text="e.g., 1.00 or 2.50", is_money_field=True, currency_symbol="$", is_integer_only=False, border_radius=8)
         total_tickets_field = NumberDecimalField(label="Total Tickets Per Book", is_integer_only=True, border_radius=8, hint_text="e.g., 150")
-        game_number_field = NumberDecimalField(label="Game No. (e.g., 3 digits)", is_integer_only=True, border_radius=8, hint_text="e.g., 453")
+        game_number_field = NumberDecimalField(label="Game No. (e.g., 3 digits)", is_integer_only=True, border_radius=8, hint_text="e.g., 453", max_length=3)
         ticket_order_options = [ft.dropdown.Option(order, order.capitalize()) for order in [REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER]]
         ticket_order_dropdown = ft.Dropdown(label="Default Ticket Order", options=ticket_order_options, value=REVERSE_TICKET_ORDER, border_radius=8)
         error_text_add = ft.Text(visible=False, color=ft.Colors.RED_700)
