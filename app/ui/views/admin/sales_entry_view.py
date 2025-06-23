@@ -35,7 +35,7 @@ class SalesEntryView(ft.Container):
 
         self.reported_online_sales_field = NumberDecimalField(label="Reported Total Online Sales - SR 50 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
         self.reported_online_payouts_field = NumberDecimalField(label="Reported Total Online Payouts - SR 50 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False )
-        self.reported_instant_payouts_field = NumberDecimalField(label="Reported Total Instant Payouts - SR 34 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=True ) # Assuming SR34 is always whole dollars
+        self.reported_instant_payouts_field = NumberDecimalField(label="Reported Total Instant Payouts - SR 34 ($)", is_money_field=True, currency_symbol="$", hint_text="Cumulative from terminal", expand=True, height=50, border_radius=8, is_integer_only=False ) # Allow decimal values for SR34
         self.actual_cash_in_drawer_field = NumberDecimalField(label="Lottery Cash in Drawer ($)", is_money_field=True, currency_symbol="$", hint_text="Lottery Cash In Drawer", expand=True, height=50, border_radius=8, is_integer_only=False )
         self.today_date_widget = ft.Text(f"Date: {datetime.datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.BOLD )
         self.books_in_table_count_widget = ft.Text("Books In Table: 0", style=ft.TextThemeStyle.TITLE_MEDIUM, weight=ft.FontWeight.NORMAL )
@@ -204,7 +204,11 @@ class SalesEntryView(ft.Container):
         if drawer_difference_dollars > 0: diff_label = " (Shortfall)"; diff_color = ft.Colors.RED_ACCENT_700
         elif drawer_difference_dollars < 0: diff_label = " (Overage)"; diff_color = ft.Colors.GREEN_ACCENT_700
         else: diff_label = " (Balanced)"
-        drawer_difference_display = ft.Text(f"Drawer Difference: {diff_text_val}{diff_label}", color=diff_color, weight=ft.FontWeight.BOLD, size=16)
+
+        # Only show the full drawer difference details (with shortfall/overage label) to admin users
+        if self.current_user and self.current_user.role == "admin":
+            drawer_difference_display = ft.Text(f"Drawer Difference: {diff_text_val}{diff_label}", color=diff_color, weight=ft.FontWeight.BOLD, size=16)
+
         dialog_content_list = [ ft.Text("Shift Submission Summary:", weight=ft.FontWeight.BOLD, size=16), ft.Text(f"Instant Sales (from table): ${total_instant_value_dollars:.2f}"), ft.Text(f"Online Sales Delta: ${delta_online_sales_dollars:.2f}"), ft.Text(f"Online Payout Delta: ${delta_online_payouts_dollars:.2f}"), ft.Text(f"Instant Payout Delta: ${delta_instant_payouts_dollars:.2f}"), ft.Divider(height=10, thickness=1), ft.Text(f"Calculated Drawer Value: ${calc_drawer_val_dollars:.2f}", weight=ft.FontWeight.BOLD, size=14), drawer_difference_display, ft.Divider(height=10, thickness=1), ]
         dialog = ft.AlertDialog(modal=True, title=ft.Text("Shift Submission Successful", weight=ft.FontWeight.BOLD), content=ft.Column(dialog_content_list, tight=True, spacing=10, width=400, scroll=ft.ScrollMode.AUTO, height=300), actions=[ ft.FilledButton("Go to Dashboard", on_click=self._go_to_dashboard, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8))) ], actions_alignment=ft.MainAxisAlignment.END, shape=ft.RoundedRectangleBorder(radius=10) )
         self.page.dialog = dialog; self.page.open(dialog)

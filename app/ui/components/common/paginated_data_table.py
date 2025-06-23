@@ -68,6 +68,13 @@ class PaginatedDataTable(ft.Container, Generic[T]):
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
 
+        # Wrap the scrollable_table_row in a container that allows vertical scrolling
+        scrollable_container = ft.Container(
+            content=scrollable_table_row,
+            expand=True,
+            scroll=ft.ScrollMode.VERTICAL, # Add vertical scrolling
+        )
+
         self._initialize_columns()
 
         self.prev_button = ft.IconButton(
@@ -91,7 +98,7 @@ class PaginatedDataTable(ft.Container, Generic[T]):
 
         table_with_pagination_column = ft.Column(
             [
-                ft.Container(content=scrollable_table_row, expand=True, padding=ft.padding.only(bottom=10)), # New
+                ft.Container(content=scrollable_container, expand=True, padding=ft.padding.only(bottom=10)), # Updated to use scrollable_container
                 pagination_controls_row
             ],
             expand=True, spacing=5
