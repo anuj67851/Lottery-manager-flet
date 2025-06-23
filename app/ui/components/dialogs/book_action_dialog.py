@@ -150,44 +150,58 @@ class BookActionDialog(ft.AlertDialog):
     def _add_item_to_action_list(self, game_no_str: str, book_no_str: str, ticket_no_str: Optional[str] = None, method_input: str = "scan",):
         self._clear_dialog_error(); game_model: Optional[GameModel] = None; book_model: Optional[BookModel] = None
         try:
-            if not (game_no_str and game_no_str.isdigit() and len(game_no_str) == GAME_LENGTH): raise ValidationError(f"Game Number must be {GAME_LENGTH} digits.")
-            if not (book_no_str and book_no_str.isdigit() and len(book_no_str) == BOOK_LENGTH): raise ValidationError(f"Book Number must be {BOOK_LENGTH} digits.")
-            if self.require_ticket_scan and not (ticket_no_str and ticket_no_str.isdigit() and len(ticket_no_str) == TICKET_LENGTH): raise ValidationError(f"Ticket Number must be {TICKET_LENGTH} digits.")
-            game_num_int = int(game_no_str)
+            # Pad inputs automatically if they are provided
+            padded_game_no = game_no_str.strip().zfill(GAME_LENGTH) if game_no_str else ""
+            padded_book_no = book_no_str.strip().zfill(BOOK_LENGTH) if book_no_str else ""
+            padded_ticket_no = ticket_no_str.strip().zfill(TICKET_LENGTH) if self.require_ticket_scan and ticket_no_str else None
+
+            if not (padded_game_no and padded_game_no.isdigit()): raise ValidationError(f"Game Number must be {GAME_LENGTH} digits.")
+            if not (padded_book_no and padded_book_no.isdigit()): raise ValidationError(f"Book Number must be {BOOK_LENGTH} digits.")
+            if self.require_ticket_scan and not (padded_ticket_no and padded_ticket_no.isdigit()): raise ValidationError(f"Ticket Number must be {TICKET_LENGTH} digits.")
+
+            game_num_int = int(padded_game_no)
             with get_db_session() as db:
                 game_model = crud_games.get_game_by_game_number(db, game_num_int)
-                if not game_model: raise GameNotFoundError(f"Game number '{game_no_str}' not found.")
+                if not game_model: raise GameNotFoundError(f"Game number '{padded_game_no}' not found.")
+
                 if self.action_type != BOOK_ACTION_ADD_NEW:
-                    book_model = self.book_service.get_book_by_game_and_book_number(db, game_model.id, book_no_str)
-                    if not book_model: raise BookNotFoundError(f"Book '{book_no_str}' for Game '{game_no_str}' not found.")
+                    book_model = self.book_service.get_book_by_game_and_book_number(db, game_model.id, padded_book_no)
+                    if not book_model: raise BookNotFoundError(f"Book '{padded_book_no}' for Game '{padded_game_no}' not found.")
                     if not book_model.game: db.refresh(book_model, ['game'])
+
+                # Action-specific validations (unchanged, but now use padded numbers for error messages)
                 if self.action_type == BOOK_ACTION_ADD_NEW:
-                    if game_model.is_expired: raise ValidationError(f"Game '{game_model.name}' (No: {game_no_str}) is expired. Cannot add new books.")
-                    existing_book_for_add = self.book_service.get_book_by_game_and_book_number(db, game_model.id, book_no_str)
-                    if existing_book_for_add: raise ValidationError(f"Book {game_no_str}-{book_no_str} already exists in the database.")
+                    if game_model.is_expired: raise ValidationError(f"Game '{game_model.name}' (No: {padded_game_no}) is expired. Cannot add new books.")
+                    existing_book_for_add = self.book_service.get_book_by_game_and_book_number(db, game_model.id, padded_book_no)
+                    if existing_book_for_add: raise ValidationError(f"Book {padded_game_no}-{padded_book_no} already exists in the database.")
                 elif self.action_type == BOOK_ACTION_FULL_SALE:
                     if not book_model: raise BookNotFoundError("Book must exist for full sale.")
-                    if game_model.is_expired: raise ValidationError(f"Game '{game_model.name}' for Book '{book_no_str}' is expired.")
+                    if game_model.is_expired: raise ValidationError(f"Game '{game_model.name}' for Book '{padded_book_no}' is expired.")
                     is_reverse_sold_out = book_model.ticket_order == REVERSE_TICKET_ORDER and book_model.current_ticket_number == -1
                     is_forward_sold_out = book_model.ticket_order == FORWARD_TICKET_ORDER and book_model.current_ticket_number == game_model.total_tickets
-                    if (is_reverse_sold_out or is_forward_sold_out) and not book_model.is_active: raise ValidationError(f"Book {game_no_str}-{book_no_str} is already marked as fully sold and inactive.")
+                    if (is_reverse_sold_out or is_forward_sold_out) and not book_model.is_active: raise ValidationError(f"Book {padded_game_no}-{padded_book_no} is already marked as fully sold and inactive.")
                 elif self.action_type == BOOK_ACTION_ACTIVATE:
                     if not book_model: raise BookNotFoundError("Book must exist for activation.")
-                    if game_model.is_expired: raise ValidationError(f"Game '{game_model.name}' for Book '{book_no_str}' is expired. Cannot activate.")
-                    if book_model.is_active: raise ValidationError(f"Book {game_no_str}-{book_no_str} is already active.")
+                    if game_model.is_expired: raise ValidationError(f"Game '{game_model.name}' for Book '{padded_book_no}' is expired. Cannot activate.")
+                    if book_model.is_active: raise ValidationError(f"Book {padded_game_no}-{padded_book_no} is already active.")
                     is_reverse_sold_out = book_model.ticket_order == REVERSE_TICKET_ORDER and book_model.current_ticket_number == -1
                     is_forward_sold_out = book_model.ticket_order == FORWARD_TICKET_ORDER and book_model.current_ticket_number == game_model.total_tickets
-                    if is_reverse_sold_out or is_forward_sold_out: raise ValidationError(f"Book {game_no_str}-{book_no_str} is finished/sold out. Cannot activate.")
-            unique_key_to_add = f"{game_no_str}-{book_no_str}"
+                    if is_reverse_sold_out or is_forward_sold_out: raise ValidationError(f"Book {padded_game_no}-{padded_book_no} is finished/sold out. Cannot activate.")
+
+            unique_key_to_add = f"{padded_game_no}-{padded_book_no}"
             if any(item.unique_key == unique_key_to_add for item in self._temp_action_items_list): raise ValidationError(f"Book {unique_key_to_add} is already in the list for this action.")
-            temp_item = TempBookActionItem(game_model, book_no_str, book_model_ref=book_model, ticket_number_str=ticket_no_str)
+
+            temp_item = TempBookActionItem(game_model, padded_book_no, book_model_ref=book_model, ticket_number_str=padded_ticket_no)
             self._temp_action_items_list.insert(0, temp_item); self._update_dialog_table_and_counts()
+
+            # Clear manual entry fields and refocus
             self.manual_game_no_field.clear(); self.manual_book_no_field.value = ""
             if self.manual_book_no_field.page: self.manual_book_no_field.update()
             if self.require_ticket_scan and self.manual_ticket_no_field: self.manual_ticket_no_field.value = ""; self.manual_ticket_no_field.update()
             if method_input == "scan" and self.scan_input_handler: self.scan_input_handler.focus_input()
             elif method_input == "manual" and self.manual_game_no_field: self.manual_game_no_field.focus()
             else: self.scan_input_handler.focus_input() if self.scan_input_handler else None
+
         except (GameNotFoundError, BookNotFoundError, ValidationError, DatabaseError) as e: self._show_dialog_error(str(e.message if hasattr(e, 'message') else e))
         except ValueError: self._show_dialog_error(f"Invalid Game Number format. Must be {GAME_LENGTH} digits.")
         except Exception as ex_unhandled: self._show_dialog_error(f"Unexpected error: {type(ex_unhandled).__name__} - {ex_unhandled}")

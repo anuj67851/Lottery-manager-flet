@@ -148,7 +148,7 @@ class SalesEntryView(ft.Container):
             self._open_confirm_shift_submission_dialog(reported_online_sales_float, reported_online_payouts_float, reported_instant_payouts_float, actual_cash_in_drawer_float, instant_sales_items_data_for_submission )
 
     def _prompt_for_empty_field_books_confirmation( self, items_to_confirm: List[SalesEntryItemData], reported_online_sales_float: float, reported_online_payouts_float: float, reported_instant_payouts_float: float, actual_cash_in_drawer_float: float, current_sales_item_details: List[Dict[str, Any]]):
-        book_details_str = "\n".join([f"- Game {item.book_model.game.game_number} / Book {item.book_number}" for item in items_to_confirm])
+        book_details_str = "\n".join([f"- Game {item.book_model.game.game_number} / Book {item.book_number} / {item.game_name}" for item in items_to_confirm])
         dialog_content_column = ft.Column([ ft.Text("The following books have no new ticket number entered:", weight=ft.FontWeight.BOLD), ft.Container(ft.Column(controls=[ft.Text(book_details_str, selectable=True)], scroll=ft.ScrollMode.ADAPTIVE), height=min(150, len(items_to_confirm)*26 + 20), padding=5), ft.Divider(height=10), ft.Text("Do you want to mark them as ALL TICKETS SOLD?"), ft.Text("Choosing 'No' will skip these specific books from this submission.", size=11, italic=True, color=ft.Colors.OUTLINE) ], tight=True, spacing=10, width=450 )
         def _handle_dialog_choice(mark_as_all_sold: bool):
             self.page.close(self.page.dialog) # type: ignore

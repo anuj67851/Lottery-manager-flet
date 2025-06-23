@@ -103,26 +103,43 @@ class BookService:
         updates: Dict[str, Any] = {}
 
         if new_book_number_str is not None:
-            if not (new_book_number_str.isdigit() and len(new_book_number_str) == 7):
-                raise ValidationError("New book number must be a 7-digit string of numbers.")
-            if new_book_number_str != book.book_number:
+            # Pad with leading zeros to meet 7-digit requirement automatically
+            padded_book_number = new_book_number_str.strip().zfill(7)
+            if not padded_book_number.isdigit():
+                raise ValidationError("New book number must contain only digits.")
+            # The length check is now implicit due to zfill
+            if padded_book_number != book.book_number:
                 # Check for duplicates with the new number for the same game
-                existing_with_new_num = crud_books.get_book_by_game_and_book_number(db, book.game_id, new_book_number_str)
+                existing_with_new_num = crud_books.get_book_by_game_and_book_number(db, book.game_id, padded_book_number)
                 if existing_with_new_num and existing_with_new_num.id != book_id:
-                    raise DatabaseError(f"Book number '{new_book_number_str}' already exists for this game.")
-                updates["book_number"] = new_book_number_str
+                    raise DatabaseError(f"Book number '{padded_book_number}' already exists for this game.")
+                updates["book_number"] = padded_book_number
 
         if new_ticket_number_str is not None:
-            if not (new_ticket_number_str.isdigit() and len(new_ticket_number_str) == 3):
-                raise ValidationError("New ticket number must be a 3-digit string of numbers.")
-            if new_ticket_number_str != book.current_ticket_number:
-                # Check for invalid ticket numbers
-                new_ticket_number = int(new_ticket_number_str)
+            new_ticket_str_clean = new_ticket_number_str.strip()
+            if not (new_ticket_str_clean == "-1" or new_ticket_str_clean.isdigit()):
+                raise ValidationError("New ticket number must be a valid number or -1.")
+
+            new_ticket_number = int(new_ticket_str_clean)
+
+            if new_ticket_number != book.current_ticket_number:
                 if new_ticket_number >= book.game.total_tickets:
-                    raise ValidationError(f"New ticket number '{new_ticket_number_str}' is greater than the maximum allowed ticket number for this game ({book.game.total_tickets - 1}).")
-                if new_ticket_number < 0:
-                    raise ValidationError(f"New ticket number '{new_ticket_number_str}' is less than the minimum ticket number for this game (0).")
-                updates["current_ticket_number"] = new_ticket_number_str
+                    if not (book.ticket_order == FORWARD_TICKET_ORDER and new_ticket_number == book.game.total_tickets):
+                        raise ValidationError(f"New ticket number '{new_ticket_number}' is out of range for this game (max: {book.game.total_tickets - 1}).")
+                if new_ticket_number < -1:
+                    raise ValidationError(f"New ticket number '{new_ticket_number}' is invalid. Must be >= -1.")
+
+                updates["current_ticket_number"] = new_ticket_number
+
+                # If the new ticket number signifies a finished book, update its status.
+                is_finished_reverse = (book.ticket_order == REVERSE_TICKET_ORDER and new_ticket_number == -1)
+                is_finished_forward = (book.ticket_order == FORWARD_TICKET_ORDER and new_ticket_number == book.game.total_tickets)
+
+                if is_finished_reverse or is_finished_forward:
+                    updates["is_active"] = False
+                    # Only set finish_date if it's not already set, or if we are definitively finishing it now.
+                    if not book.finish_date or book.is_active:
+                        updates["finish_date"] = datetime.datetime.now()
 
         if new_ticket_order is not None and new_ticket_order in [REVERSE_TICKET_ORDER, FORWARD_TICKET_ORDER]:
             if new_ticket_order != book.ticket_order:
